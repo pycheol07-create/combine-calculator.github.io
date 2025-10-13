@@ -419,11 +419,6 @@
                 { label: "총 상품 금액", name: "totalProductPrice", unit: "USD", icon: <CurrencyDollarIcon /> },
               ];
 
-              const commonInputFields = [
-                { label: "박스당 무게", name: "weightPerBox", unit: "kg/박스", icon: <ScaleIcon /> },
-                { label: "고시환율", name: "exchangeRate", unit: "원-달러", icon: <TrendingUpIcon /> },
-              ];
-
               const calculationModeOptions = [
                 { label: '상품기준', value: 'product' },
                 { label: '박스기준', value: 'box' },
@@ -482,18 +477,30 @@
                           />
                         ))}
 
-                        {commonInputFields.map(field => (
-                          <InputControl
-                            key={field.name}
-                            label={field.label}
-                            name={field.name}
-                            value={formData[field.name]}
+                        <InputControl
+                            label="박스당 무게"
+                            name="weightPerBox"
+                            value={formData.weightPerBox}
                             onChange={handleInputChange}
-                            unit={field.unit}
-                            icon={field.icon}
+                            unit="kg/박스"
+                            icon={<ScaleIcon />}
                             onKeyDown={handleKeyDown}
-                          />
-                        ))}
+                        />
+
+                        <div>
+                            <InputControl
+                                label="고시환율"
+                                name="exchangeRate"
+                                value={formData.exchangeRate}
+                                onChange={handleInputChange}
+                                unit="원-달러"
+                                icon={<TrendingUpIcon />}
+                                onKeyDown={handleKeyDown}
+                            />
+                            <p className="text-xs text-gray-500 mt-1 px-1">
+                                정확한 계산을 위해 <a href="https://unipass.customs.go.kr/csp/index.do?tgMenuId=MYC_EXIM_005" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline font-medium">관세청 고시환율</a>을 직접 입력해주세요.
+                            </p>
+                        </div>
 
                         <div className={`grid transition-all duration-300 ease-in-out ${
                             formData.shippingType === 'FCL' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
@@ -1271,3 +1278,4 @@
     </script>
 </body>
 </html>
+
