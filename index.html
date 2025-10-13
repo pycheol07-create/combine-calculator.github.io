@@ -264,28 +264,20 @@
         };
         
         // --- From components/CustomsCalculator.tsx ---
-        const CustomsCalculator = () => {
+        const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
               const formRef = useRef(null);
               const [calculationMode, setCalculationMode] = useState('product');
-              const [formData, setFormData] = useState(() => {
-                  const savedExchangeRate = localStorage.getItem('exchangeRate');
-                  return {
-                    productQuantity: '1000',
-                    unitPrice: '10',
-                    quantityPerBox: '50',
-                    boxQuantity: '',
-                    totalProductPrice: '',
-                    weightPerBox: '12',
-                    exchangeRate: savedExchangeRate || '1350',
-                    tariffRate: '8',
-                    shippingType: 'LCL',
-                    containerCost: '',
-                  };
-                });
-              
-                useEffect(() => {
-                  localStorage.setItem('exchangeRate', formData.exchangeRate);
-                }, [formData.exchangeRate]);
+              const [formData, setFormData] = useState({
+                productQuantity: '1000',
+                unitPrice: '10',
+                quantityPerBox: '50',
+                boxQuantity: '',
+                totalProductPrice: '',
+                weightPerBox: '12',
+                tariffRate: '8',
+                shippingType: 'LCL',
+                containerCost: '',
+              });
               
                 const handleInputChange = useCallback((e) => {
                   const { name, value } = e.target;
@@ -317,7 +309,7 @@
                 }, []);
 
                 const results = useMemo(() => {
-                  const exchangeRate = parseFloat(formData.exchangeRate) || 1;
+                  const exchangeRateValue = parseFloat(exchangeRate) || 1;
                   const tariffRateValue = parseFloat(formData.tariffRate) / 100;
                   const { shippingType, containerCost } = formData;
                   const weightPerBox = parseFloat(formData.weightPerBox) || 0;
@@ -326,7 +318,7 @@
                   let totalProductPriceUSD;
                   let totalWeight;
 
-                  if (exchangeRate === 0) return null;
+                  if (exchangeRateValue === 0) return null;
 
                   if (calculationMode === 'product') {
                       const productQuantity = parseFloat(formData.productQuantity) || 0;
@@ -354,15 +346,15 @@
                       oceanFreightKRW = cbm * OCEAN_FREIGHT_RATE_PER_CBM;
                   }
 
-                  const oceanFreightUSD = oceanFreightKRW / exchangeRate;
+                  const oceanFreightUSD = oceanFreightKRW / exchangeRateValue;
                   const taxableBaseUSD = totalProductPriceUSD + oceanFreightUSD;
                   const tariffAmountUSD = taxableBaseUSD * tariffRateValue;
                   const vatBaseUSD = taxableBaseUSD + tariffAmountUSD;
                   const vatAmountUSD = vatBaseUSD * VAT_RATE;
                 
-                  const totalProductPriceKRW = totalProductPriceUSD * exchangeRate;
-                  const tariffAmount = tariffAmountUSD * exchangeRate;
-                  const vatAmount = vatAmountUSD * exchangeRate;
+                  const totalProductPriceKRW = totalProductPriceUSD * exchangeRateValue;
+                  const tariffAmount = tariffAmountUSD * exchangeRateValue;
+                  const vatAmount = vatAmountUSD * exchangeRateValue;
                   const totalTaxes = tariffAmount + vatAmount;
                 
                   const taxableBase = totalProductPriceKRW + oceanFreightKRW;
@@ -383,7 +375,7 @@
                     coFee: CO_FEE,
                     totalCost,
                   };
-                }, [formData, calculationMode]);
+                }, [formData, calculationMode, exchangeRate]);
               
               const CalculatorIcon = () => (
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -491,8 +483,8 @@
                             <InputControl
                                 label="고시환율"
                                 name="exchangeRate"
-                                value={formData.exchangeRate}
-                                onChange={handleInputChange}
+                                value={exchangeRate}
+                                onChange={(e) => onExchangeRateChange(e.target.value)}
                                 unit="원-달러"
                                 icon={<TrendingUpIcon />}
                                 onKeyDown={handleKeyDown}
@@ -565,7 +557,7 @@
         };
 
         // --- From components/ImportCalculator.tsx ---
-        const ImportCalculator = () => {
+        const ImportCalculator = ({ exchangeRate, onExchangeRateChange }) => {
             const formRef = useRef(null);
             const [cnyToUsdRate, setCnyToUsdRate] = useState(null);
             const [cnyRateStatus, setCnyRateStatus] = useState('loading');
@@ -576,7 +568,6 @@
                 customsFeeRate: String(CUSTOMS_FEE_RATE_LOW),
                 packagingBag: String(PACKAGING_BAG_DEFAULT),
                 label: String(LABEL_DEFAULT),
-                usdToKrwRate: '1350',
             });
 
             useEffect(() => {
@@ -633,22 +624,22 @@
                 const labelCost = parseFloat(formData.label) || 0;
                 const commissionRate = parseFloat(formData.commissionRate) || 0;
                 const customsFeeRate = parseFloat(formData.customsFeeRate) || 0;
-                const usdToKrwRateValue = parseFloat(formData.usdToKrwRate) || 0;
+                const exchangeRateValue = parseFloat(exchangeRate) || 0;
 
-                if (productCost === 0 || !cnyToUsdRate || usdToKrwRateValue === 0) return null;
+                if (productCost === 0 || !cnyToUsdRate || exchangeRateValue === 0) return null;
 
                 const baseCostCNY = productCost + packagingCost + labelCost;
                 const commissionCNY = baseCostCNY * commissionRate;
                 const totalCostCNY = baseCostCNY + commissionCNY;
 
                 const totalCostUSD = totalCostCNY * cnyToUsdRate;
-                const totalCostKRW = totalCostUSD * usdToKrwRateValue;
+                const totalCostKRW = totalCostUSD * exchangeRateValue;
                 
                 const customsFeeKRW = totalCostKRW * customsFeeRate;
                 const finalImportCost = totalCostKRW + customsFeeKRW;
 
                 return { baseCostCNY, commissionCNY, totalCostCNY, totalCostUSD, totalCostKRW, customsFeeKRW, finalImportCost };
-            }, [formData, cnyToUsdRate]);
+            }, [formData, cnyToUsdRate, exchangeRate]);
 
             const CurrencyYenIcon = () => (
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 4h4m-5 4h5M5 8h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg>
@@ -768,9 +759,9 @@
                             <div>
                                 <InputControl
                                     label="관세청 고시환율"
-                                    name="usdToKrwRate"
-                                    value={formData.usdToKrwRate}
-                                    onChange={handleInputChange}
+                                    name="exchangeRate"
+                                    value={exchangeRate}
+                                    onChange={(e) => onExchangeRateChange(e.target.value)}
                                     unit="원-달러"
                                     icon={<TrendingUpIcon />}
                                     onKeyDown={handleKeyDown}
@@ -1144,13 +1135,20 @@
 
         // --- From App.tsx ---
         const App = () => {
-            const tabs = useMemo(() => [
-                { id: 'customs', title: '통관비', component: <CustomsCalculator /> },
-                { id: 'import', title: '수입가', component: <ImportCalculator /> },
-                { id: 'shipping', title: '선적', component: <ShippingCalculator /> },
-            ], []);
+            const [activeTabId, setActiveTabId] = useState('customs');
+             const [exchangeRate, setExchangeRate] = useState(() => {
+                return localStorage.getItem('exchangeRate') || '1350';
+            });
 
-            const [activeTabId, setActiveTabId] = useState(tabs[0].id);
+            useEffect(() => {
+                localStorage.setItem('exchangeRate', exchangeRate);
+            }, [exchangeRate]);
+
+            const tabs = useMemo(() => [
+                { id: 'customs', title: '통관비', component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} /> },
+                { id: 'import', title: '수입가', component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} /> },
+                { id: 'shipping', title: '선적', component: <ShippingCalculator /> },
+            ], [exchangeRate]);
 
             // State for touch swipe
             const touchStartX = useRef(null);
@@ -1208,7 +1206,7 @@
             
             // During swipe, we use touchDeltaX, otherwise it's 0 for smooth snapping
             const dragOffset = isSwiping ? touchDeltaX.current : 0;
-    const transformValue = `translateX(calc(-${activeTabIndex * 100}% + ${dragOffset}px))`;
+            const transformValue = `translateX(calc(-${activeTabIndex * 100}% + ${dragOffset}px))`;
 
             return (
                 <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
