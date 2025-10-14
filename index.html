@@ -570,28 +570,50 @@
                 label: String(LABEL_DEFAULT),
             });
 
+            // ----- 변경: 두 개의 무료 API를 순차 시도하는 함수 + 캐시 무력화 -----
+            const getCnyUsdRate = async () => {
+                const ts = Date.now();
+                const fetchOpts = { cache: 'no-store' };
+
+                // 1) Frankfurter
+                try {
+                    const url1 = `https://api.frankfurter.app/latest?from=CNY&to=USD&ts=${ts}`;
+                    const res1 = await fetch(url1, fetchOpts);
+                    if (!res1.ok) throw new Error('Frankfurter response not ok');
+                    const data1 = await res1.json();
+                    if (data1 && data1.rates && typeof data1.rates.USD === 'number') {
+                        return data1.rates.USD; // 1 CNY -> USD
+                    }
+                    throw new Error('Frankfurter invalid payload');
+                } catch (e) {
+                    // fallthrough
+                }
+
+                // 2) exchangerate.host
+                const url2 = `https://api.exchangerate.host/latest?base=CNY&symbols=USD&ts=${ts}`;
+                const res2 = await fetch(url2, fetchOpts);
+                if (!res2.ok) throw new Error('exchangerate.host response not ok');
+                const data2 = await res2.json();
+                if (data2 && data2.rates && typeof data2.rates.USD === 'number') {
+                    return data2.rates.USD; // 1 CNY -> USD
+                }
+                throw new Error('exchangerate.host invalid payload');
+            };
+
             useEffect(() => {
                 const fetchCnyRate = async () => {
                     setCnyRateStatus('loading');
                     try {
-                        const response = await fetch('https://open.er-api.com/v6/latest/CNY');
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                        const data = await response.json();
-                        if (data && data.rates && data.rates.USD) {
-                            setCnyToUsdRate(data.rates.USD);
-                            setCnyRateStatus('success');
-                        } else {
-                            throw new Error('Invalid API response format');
-                        }
+                        const rate = await getCnyUsdRate();
+                        setCnyToUsdRate(rate);
+                        setCnyRateStatus('success');
                     } catch (error) {
                         console.error("Failed to fetch CNY-USD exchange rate:", error);
                         setCnyRateStatus('error');
                     }
                 };
                 fetchCnyRate();
-            }, []);
+            }, []); // 최초 1회: 필요 시 주기/수동 갱신 버튼 추가 가능
 
             const handleInputChange = useCallback((e) => {
                 const { name, value } = e.target;
@@ -1276,4 +1298,3 @@
     </script>
 </body>
 </html>
-
