@@ -1505,7 +1505,7 @@
                 setComparisonOpen(false);
             };
 
-Initial:
+            // --- BUG FIX: 'Initial:' 라벨을 삭제했습니다. ---
             const tabs = useMemo(() => [
                 { id: 'import', title: '수입가', component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
                 { id: 'customs', title: '통관비', component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
