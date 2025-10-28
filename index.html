@@ -764,6 +764,8 @@
                       </div>
 
                       <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">상세 정보 입력</h2>
+                      
+                      {/* --- MODIFIED: Field Order Changed --- */}
                       <div className="space-y-6">
                         {(calculationMode === 'product' ? productModeFields : boxModeFields).map(field => (
                           <InputControl
@@ -788,7 +790,7 @@
                             onKeyDown={handleKeyDown}
                         />
 
-                        {/* --- 고시환율 --- */}
+                        {/* 1. 고시환율 */}
                         <div>
                             <InputControl
                                 label="고시환율"
@@ -804,7 +806,7 @@
                             </p>
                         </div>
                         
-                        {/* --- 순서 변경: 관세 필드가 여기로 이동 --- */}
+                        {/* 2. 관세 (순서 이동됨) */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             관세
@@ -834,13 +836,13 @@
                           </fieldset>
                         </div>
 
-                        {/* --- 현재 환율 (참고용) --- */}
+                        {/* 3. 현재 환율 (참고용) */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">현재 환율 (참고용)</label>
                             <LiveRateDisplay rates={liveRates} status={rateStatus} />
                         </div>
 
-                        {/* --- 컨테이너 비용 --- */}
+                        {/* 4. 컨테이너 비용 */}
                         <div className={`grid transition-all duration-300 ease-in-out ${
                             formData.shippingType === 'FCL' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                         }`}>
@@ -858,6 +860,9 @@
                         </div>
                         
                       </div>
+                      {/* --- END MODIFICATION --- */}
+
+                    </div>
                     
                     {results ? (
                       <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
@@ -1505,7 +1510,6 @@
                 setComparisonOpen(false);
             };
 
-            // --- BUG FIX: 'Initial:' 라벨을 삭제했습니다. ---
             const tabs = useMemo(() => [
                 { id: 'import', title: '수입가', component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
                 { id: 'customs', title: '통관비', component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
