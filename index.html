@@ -788,7 +788,7 @@
                             onKeyDown={handleKeyDown}
                         />
 
-                        {/* --- MODIFIED: Reverted to original InputControl --- */}
+                        {/* --- 고시환율 --- */}
                         <div>
                             <InputControl
                                 label="고시환율"
@@ -803,31 +803,8 @@
                                 정확한 계산을 위해 <a href="https://unipass.customs.go.kr/csp/index.do?tgMenuId=MYC_EXIM_005" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline font-medium">관세청 고시환율</a>을 직접 입력해주세요.
                             </p>
                         </div>
-                        {/* --- END MODIFICATION --- */}
-
-                        {/* --- NEW SECTION --- */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">현재 환율 (참고용)</label>
-                            <LiveRateDisplay rates={liveRates} status={rateStatus} />
-                        </div>
-                        {/* --- END NEW --- */}
-
-                        <div className={`grid transition-all duration-300 ease-in-out ${
-                            formData.shippingType === 'FCL' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                        }`}>
-                          <div className="overflow-hidden">
-                            <InputControl
-                                label="컨테이너 비용"
-                                name="containerCost"
-                                value={formData.containerCost}
-                                onChange={handleInputChange}
-                                unit="원"
-                                icon={<CurrencyWonIcon />}
-                                onKeyDown={handleKeyDown}
-                            />
-                          </div>
-                        </div>
                         
+                        {/* --- 순서 변경: 관세 필드가 여기로 이동 --- */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             관세
@@ -856,8 +833,31 @@
                             ))}
                           </fieldset>
                         </div>
+
+                        {/* --- 현재 환율 (참고용) --- */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">현재 환율 (참고용)</label>
+                            <LiveRateDisplay rates={liveRates} status={rateStatus} />
+                        </div>
+
+                        {/* --- 컨테이너 비용 --- */}
+                        <div className={`grid transition-all duration-300 ease-in-out ${
+                            formData.shippingType === 'FCL' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                        }`}>
+                          <div className="overflow-hidden">
+                            <InputControl
+                                label="컨테이너 비용"
+                                name="containerCost"
+                                value={formData.containerCost}
+                                onChange={handleInputChange}
+                                unit="원"
+                                icon={<CurrencyWonIcon />}
+                                onKeyDown={handleKeyDown}
+                            />
+                          </div>
+                        </div>
+                        
                       </div>
-                    </div>
                     
                     {results ? (
                       <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
