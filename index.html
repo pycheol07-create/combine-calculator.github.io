@@ -43,21 +43,6 @@
       .animate-fade-in-slide-up {
         animation: fade-in-slide-up 0.5s ease-out forwards;
       }
-      /* --- NEW: Scrollbar styling for settings modal --- */
-      .settings-scroll::-webkit-scrollbar {
-        width: 6px;
-      }
-      .settings-scroll::-webkit-scrollbar-track {
-        background: #f1f5f9; /* slate-100 */
-        border-radius: 10px;
-      }
-      .settings-scroll::-webkit-scrollbar-thumb {
-        background: #94a3b8; /* slate-400 */
-        border-radius: 10px;
-      }
-      .settings-scroll::-webkit-scrollbar-thumb:hover {
-        background: #64748b; /* slate-500 */
-      }
     </style>
 </head>
 <body class="bg-slate-100">
@@ -67,39 +52,23 @@
         import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
         import ReactDOM from 'react-dom/client';
 
-        // --- REMOVED All top-level constants ---
+        // --- From constants.ts ---
+        const DOCS_FEE = 88000;
+        const CO_FEE = 43700;
+        const OCEAN_FREIGHT_RATE_PER_CBM = 110000;
+        const CBM_WEIGHT_DIVISOR = 250;
+        const VAT_RATE = 0.1;
 
-        // --- NEW: Default Settings Structure ---
-        const defaultSettings = {
-            common: {
-                vatRate: 0.1,
-            },
-            importCalc: {
-                commissionHigh: 0.035,
-                commissionLow: 0,
-                customsFeeHigh: 0.29,
-                customsFeeLow: 0.22,
-                packagingDefault: 0.31,
-                packagingOuter: 0.46,
-                packagingNone: 0,
-                labelDefault: 0.03,
-                labelNone: 0,
-                // List for dynamic additional costs (in CNY)
-                additionalCosts: [
-                    // { id: 'import-custom-1', name: '현지 운송비', value: 50, deletable: true }
-                ]
-            },
-            customsCalc: {
-                oceanFreightRate: 110000,
-                cbmDivisor: 250,
-                // List for dynamic fixed costs (in KRW)
-                fixedCosts: [
-                    { id: 'docsFee', name: '서류비', value: 88000, deletable: false },
-                    { id: 'coFee', name: 'CO발급비', value: 43700, deletable: false },
-                ]
-            }
-        };
+        const COMMISSION_RATE_HIGH = 0.035;
+        const COMMISSION_RATE_LOW = 0;
+        const CUSTOMS_FEE_RATE_HIGH = 0.29;
+        const CUSTOMS_FEE_RATE_LOW = 0.22;
 
+        const PACKAGING_BAG_DEFAULT = 0.31;
+        const PACKAGING_BAG_OUTER = 0.46;
+        const PACKAGING_BAG_NONE = 0;
+        const LABEL_DEFAULT = 0.03;
+        const LABEL_NONE = 0;
 
         const CONTAINER_DIMENSIONS = {
           FT20: { length: 5898, width: 2352, height: 2393 },
@@ -114,8 +83,7 @@
         };
         
         // --- From components/InputControl.tsx ---
-        // Added `disabled` prop
-        const InputControl = ({ label, name, value, onChange, unit, placeholder, icon, onKeyDown, type = "number", disabled = false }) => { 
+        const InputControl = ({ label, name, value, onChange, unit, placeholder, icon, onKeyDown, type = "number" }) => { // Added type prop
           return (
             <div>
               <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
@@ -133,9 +101,9 @@
                   onChange={onChange}
                   onKeyDown={onKeyDown}
                   placeholder={placeholder || "0"}
+                  // Added step="any" for potential decimal inputs, adjusted padding
                   step={type === "number" ? "any" : undefined} 
-                  disabled={disabled} // Added disabled prop
-                  className={`w-full rounded-md border-gray-300 py-2 pl-10 pr-12 sm:pr-16 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''}`} // Added disabled styling
+                  className="w-full rounded-md border-gray-300 py-2 pl-10 pr-12 sm:pr-16 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm"
                 />
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                   <span className="text-gray-500 sm:text-sm">{unit}</span>
@@ -145,17 +113,17 @@
           );
         };
         
-        // --- Global Icon Components (Moved for global access) ---
-        const TrendingUpIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> );
-        const ReceiptIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /> </svg> );
-        const CurrencyWonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7l4 8 4-8M6 12h12m-12 3h12" /></svg>);
-        const CurrencyYenIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 4h4m-5 4h5M5 8h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg>);
-        const ScaleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l-6-2m6 2l-3 1m-3-1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>);
-        const PercentageIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 16l-4-4m0 0l4-4m-4 4h18m-4 4l4-4m0 0l-4-4m-4 8a2 2 0 11-4 0 2 2 0 014 0zM5 8a2 2 0 100-4 2 2 0 000 4z" /></svg>);
-        const SettingsIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>);
-        const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>);
-        const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>);
-        const CompareIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" /></svg>);
+        // --- Global Icon Component ---
+        const TrendingUpIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+        );
+        
+        // --- NEW ICON ---
+        const ReceiptIcon = () => (
+           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+           </svg>
+        );
 
         // --- NEW COMPONENT: LiveRateDisplay ---
         const LiveRateDisplay = ({ rates, status }) => {
@@ -204,7 +172,7 @@
         };
 
         // --- From components/ResultCard.tsx ---
-        const ResultCard = ({ results, fixedCosts }) => { // fixedCosts 추가
+        const ResultCard = ({ results }) => {
           const [isTaxesExpanded, setIsTaxesExpanded] = useState(false);
           const [isFeesExpanded, setIsFeesExpanded] = useState(false);
 
@@ -257,11 +225,6 @@
               PriceTag: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A2 2 0 013 8V3z" /></svg>,
               Receipt: <ReceiptIcon />, // Use the ReceiptIcon component
           };
-
-          // --- MODIFIED: Calculate total fixed costs from prop ---
-          const totalFixedCosts = Array.isArray(fixedCosts) 
-            ? fixedCosts.reduce((sum, cost) => sum + (Number(cost.value) || 0), 0)
-            : 0;
           
           return (
             <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
@@ -284,6 +247,7 @@
                       icon={Icons.Shipping}
                   />
                   
+                  {/* --- NEW ITEM: Commission --- */}
                   {results.commissionAmountKRW > 0 && (
                       <ResultItem 
                           label="수수료" 
@@ -291,6 +255,7 @@
                           icon={Icons.Receipt} 
                       />
                   )}
+                  {/* --- END NEW --- */}
                   
                   {results.costPerItem > 0 && (
                       <ResultItem 
@@ -339,7 +304,7 @@
                       </div>
                   </div>
                   
-                  {/* --- MODIFIED: Fee Group --- */}
+                  {/* Fee Group */}
                   <div>
                       <div 
                           onClick={() => setIsFeesExpanded(!isFeesExpanded)}
@@ -351,27 +316,30 @@
                               <div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-emerald-100">
                                   {Icons.Fee}
                               </div>
-                              <span className="ml-4 font-medium text-gray-800">기타 고정 수수료</span>
+                              <span className="ml-4 font-medium text-gray-800">기타 고정 수수료</span> {/* Label slightly changed */}
                           </div>
                           <div className="flex items-center">
                               <span className="font-semibold text-gray-900">
-                                  <AnimatedNumber value={totalFixedCosts} formatter={formatCurrency} />
+                                  <AnimatedNumber value={results.docsFee + results.coFee} formatter={formatCurrency} />
                               </span>
                               <span className={`ml-2 transform transition-transform duration-200 md:hidden ${isFeesExpanded ? 'rotate-180' : ''}`}>
                                   {Icons.ChevronDown}
                               </span>
                           </div>
                       </div>
-                      <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isFeesExpanded ? 'max-h-96' : 'max-h-0'} md:max-h-96`}>
-                          {Array.isArray(fixedCosts) && fixedCosts.map((cost) => (
-                              <ResultItem 
-                                  key={cost.id}
-                                  label={cost.name}
-                                  value={<AnimatedNumber value={cost.value} formatter={formatCurrency} />} 
-                                  icon={cost.id === 'docsFee' ? Icons.DocsFee : cost.id === 'coFee' ? Icons.CoFee : Icons.Receipt}
-                                  isSub={true}
-                              />
-                          ))}
+                      <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isFeesExpanded ? 'max-h-40' : 'max-h-0'} md:max-h-40`}>
+                          <ResultItem 
+                              label="서류비" 
+                              value={<AnimatedNumber value={results.docsFee} formatter={formatCurrency} />} 
+                              icon={Icons.DocsFee}
+                              isSub={true}
+                          />
+                          <ResultItem 
+                              label="CO발급비" 
+                              value={<AnimatedNumber value={results.coFee} formatter={formatCurrency} />} 
+                              icon={Icons.CoFee}
+                              isSub={true}
+                          />
                       </div>
                   </div>
                 </div>
@@ -436,8 +404,7 @@
         };
 
         // --- Gemini Feature: Analysis Modal Component ---
-        // --- MODIFIED: Accepts fixedCosts to dynamically build chart data ---
-        const AnalysisModal = ({ show, onClose, results, calculatorType, fixedCosts = [] }) => {
+        const AnalysisModal = ({ show, onClose, results, calculatorType }) => {
             if (!show) return null;
 
             const formatCurrency = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0);
@@ -447,36 +414,21 @@
 
             if (calculatorType === 'import') {
                 title = '수입가 상세 분석';
-                // This chart is high-level (KRW vs KRW) and doesn't need to change
-                // `results.totalCostKRW` already includes all CNY costs (base, packaging, label, additional)
                 chartData = [
                     { label: '상품 원가 (환산액)', value: results.totalCostKRW, color: '#34d399' },
                     { label: '통관비', value: results.customsFeeKRW, color: '#fbbf24' },
                 ];
             } else if (calculatorType === 'customs') {
                 title = '통관비 상세 분석';
-                
                 chartData = [
                     { label: '총 상품가', value: results.totalProductPriceKRW, color: '#34d399' },
                     { label: '해운비', value: results.oceanFreightKRW, color: '#60a5fa' },
-                    { label: '수수료', value: results.commissionAmountKRW, color: '#c084fc' },
+                    { label: '수수료', value: results.commissionAmountKRW, color: '#c084fc' }, // Added commission
                     { label: '관세', value: results.tariffAmount, color: '#fbbf24' },
                     { label: '부가가치세', value: results.vatAmount, color: '#f87171' },
+                    { label: '기타 고정 수수료', value: results.docsFee + results.coFee, color: '#a78bfa' },
                 ];
-                
-                const fixedCostColors = ['#a78bfa', '#f472b6', '#78dcca', '#fdba74'];
-                if(Array.isArray(fixedCosts)) {
-                    fixedCosts.forEach((cost, index) => {
-                        if (cost.value > 0) {
-                            chartData.push({
-                                label: cost.name,
-                                value: cost.value,
-                                color: fixedCostColors[index % fixedCostColors.length]
-                            });
-                        }
-                    });
-                }
-                
+                // Filter out items with zero value
                 chartData = chartData.filter(item => item.value > 0);
             }
 
@@ -487,7 +439,7 @@
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 animate-fade-in-slide-up" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center border-b pb-3 mb-4">
                             <h2 className="text-xl font-bold text-gray-800">{title}</h2>
-                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><CloseIcon /></button>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">&times;</button>
                         </div>
                         <PieChart data={chartData} />
                         <div className="mt-6 pt-4 border-t">
@@ -541,6 +493,7 @@
                             <ul className="space-y-1 text-sm">
                                 <li className="flex justify-between"><span>총 상품가:</span><span className="font-mono">{formatCurrency(scenario.data.results.totalProductPriceKRW)}</span></li>
                                 <li className="flex justify-between"><span>해운비:</span><span className="font-mono">{formatCurrency(scenario.data.results.oceanFreightKRW)}</span></li>
+                                {/* Added Commission to comparison if available */}
                                 {scenario.data.results.commissionAmountKRW > 0 && (
                                   <li className="flex justify-between"><span>수수료:</span><span className="font-mono">{formatCurrency(scenario.data.results.commissionAmountKRW)}</span></li>
                                 )}
@@ -558,7 +511,7 @@
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl p-6 animate-fade-in-slide-up" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center border-b pb-3 mb-4">
                             <h2 className="text-xl font-bold text-gray-800">시나리오 비교</h2>
-                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><CloseIcon /></button>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">&times;</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {renderScenario(scenarios[0], 0)}
@@ -607,208 +560,9 @@
                 </div>
             )
         }
-
-        // --- NEW: Reusable CostListManager Component ---
-        const CostListManager = ({ costs, onChange, unit = "원" }) => {
-            const handleValueChange = (id, newValue) => { onChange(costs.map(c => c.id === id ? { ...c, value: Number(newValue) || 0 } : c)); };
-            const handleNameChange = (id, newName) => { onChange(costs.map(c => c.id === id ? { ...c, name: newName } : c)); };
-            const handleAddCost = () => { onChange([...costs, { id: `custom-${Date.now()}-${Math.random().toString(36).substring(7)}`, name: '', value: 0, deletable: true }]); }; 
-            const handleDeleteCost = (idToDelete) => { onChange(costs.filter(c => c.id !== idToDelete)); };
-
-            return (
-                <div>
-                    <div className="space-y-4 max-h-64 overflow-y-auto pr-2 settings-scroll">
-                        {/* Ensure costs is an array before mapping */}
-                        {Array.isArray(costs) && costs.length > 0 ? (
-                            costs.map((cost) => (
-                                <div key={cost.id} className="flex items-center gap-2 p-2 border rounded-lg bg-slate-50">
-                                    <div className="flex-1">
-                                        <InputControl type="text" label="" name={`name-${cost.id}`} value={cost.name} onChange={(e) => handleNameChange(cost.id, e.target.value)} placeholder="항목 이름" disabled={!cost.deletable} />
-                                    </div>
-                                    <div className="w-32 flex-shrink-0">
-                                        <InputControl type="number" label="" name={`value-${cost.id}`} value={cost.value} onChange={(e) => handleValueChange(cost.id, e.target.value)} unit={unit} icon={unit === '원' ? <CurrencyWonIcon /> : <CurrencyYenIcon />} placeholder="0" />
-                                    </div>
-                                    <button onClick={() => handleDeleteCost(cost.id)} className={`p-2 text-red-500 hover:text-red-700 ${!cost.deletable ? 'opacity-30 cursor-not-allowed' : ''}`} disabled={!cost.deletable} aria-label="삭제">
-                                        <TrashIcon/>
-                                    </button>
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-center text-gray-500 text-sm py-4">추가된 항목이 없습니다.</p>
-                        )}
-                    </div>
-                    <button onClick={handleAddCost} className="mt-4 w-full text-sm font-semibold py-2 px-4 border-2 border-dashed border-emerald-300 text-emerald-600 rounded-lg hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-1">
-                        + 항목 추가
-                    </button>
-                </div>
-            );
-        };
-
-
-        // --- REWRITTEN: SettingsModal Component ---
-        const SettingsModal = ({ show, onClose, currentSettings, onSave, onReset }) => {
-            // Use a deep copy for local state to avoid mutating the prop
-            const [localSettings, setLocalSettings] = useState(() => JSON.parse(JSON.stringify(currentSettings)));
-            const [activeTab, setActiveTab] = useState('customs');
-
-            // Update local state if prop changes (e.g., on reset)
-            useEffect(() => {
-                setLocalSettings(JSON.parse(JSON.stringify(currentSettings)));
-            }, [currentSettings]);
-
-            const handleSaveClick = () => {
-                onSave(localSettings);
-                onClose();
-            };
-            
-            const handleResetClick = () => {
-                onReset(); // App state reset triggers prop change, which triggers useEffect
-            };
-
-            // Generic handler for simple value changes (e.g., text/number inputs)
-            const handleValueChange = (tab, field, value) => {
-                // Determine if value should be number or string
-                const numericValue = Number(value);
-                const isNumeric = !isNaN(numericValue) && value.trim() !== '';
-                
-                // Special case for VAT rate (needs to be a decimal)
-                let finalValue = isNumeric ? numericValue : 0;
-                if (field === 'vatRate') {
-                    finalValue = (numericValue / 100) || 0;
-                } else if (!isNumeric) {
-                    finalValue = value; // Allow non-numeric values if needed (though current form is all numbers)
-                }
-
-                setLocalSettings(prev => ({
-                    ...prev,
-                    [tab]: {
-                        ...prev[tab],
-                        [field]: finalValue
-                    }
-                }));
-            };
-            
-            // Handler for list changes (delegating to CostListManager)
-            const handleListChange = (tab, listName, newList) => {
-                 setLocalSettings(prev => ({
-                    ...prev,
-                    [tab]: {
-                        ...prev[tab],
-                        [listName]: newList
-                    }
-                }));
-            };
-
-            if (!show) return null;
-
-            const tabStyles = "flex-1 py-2 px-3 text-center text-sm font-semibold rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-1 transition-all duration-200";
-            const activeTabStyles = "bg-emerald-600 text-white";
-            const inactiveTabStyles = "bg-slate-200 text-slate-700 hover:bg-slate-300";
-            
-            // Helper to get value for input (e.g., convert vatRate back to percentage)
-            const getDisplayValue = (tab, field) => {
-                const value = localSettings[tab][field];
-                if (field === 'vatRate') {
-                    return (Number(value) * 100) || 0;
-                }
-                return value;
-            }
-
-            return ( 
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={onClose}>
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 animate-fade-in-slide-up" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center border-b pb-3 mb-4">
-                            <h2 className="text-xl font-bold text-gray-800">기본 설정</h2>
-                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><CloseIcon/></button>
-                        </div>
-
-                        {/* Tab Navigation */}
-                        <div className="flex gap-2 p-1 bg-slate-100 rounded-lg mb-4">
-                            <button onClick={() => setActiveTab('customs')} className={`${tabStyles} ${activeTab === 'customs' ? activeTabStyles : inactiveTabStyles}`}>통관비 설정</button>
-                            <button onClick={() => setActiveTab('import')} className={`${tabStyles} ${activeTab === 'import' ? activeTabStyles : inactiveTabStyles}`}>수입가 설정</button>
-                            <button onClick={() => setActiveTab('common')} className={`${tabStyles} ${activeTab === 'common' ? activeTabStyles : inactiveTabStyles}`}>공통 설정</button>
-                        </div>
-                        
-                        {/* Tab Content */}
-                        <div className="max-h-[60vh] overflow-y-auto pr-2 settings-scroll">
-                            {/* --- Customs Tab --- */}
-                            {activeTab === 'customs' && (
-                                <div className="space-y-6">
-                                    <div>
-                                        <h3 className="font-semibold text-gray-700 mb-2">기본 값 설정</h3>
-                                        <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-slate-50">
-                                            <InputControl type="number" label="CBM당 해운비" name="oceanFreightRate" value={getDisplayValue('customsCalc', 'oceanFreightRate')} onChange={(e) => handleValueChange('customsCalc', 'oceanFreightRate', e.target.value)} unit="원" icon={<CurrencyWonIcon />} />
-                                            <InputControl type="number" label="CBM 변환 계수" name="cbmDivisor" value={getDisplayValue('customsCalc', 'cbmDivisor')} onChange={(e) => handleValueChange('customsCalc', 'cbmDivisor', e.target.value)} unit="kg" icon={<ScaleIcon />} />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold text-gray-700 mb-2">기타 고정 수수료 (원)</h3>
-                                        <CostListManager 
-                                            costs={localSettings.customsCalc.fixedCosts} 
-                                            onChange={(newList) => handleListChange('customsCalc', 'fixedCosts', newList)}
-                                            unit="원"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {/* --- Import Tab --- */}
-                            {activeTab === 'import' && (
-                                <div className="space-y-6">
-                                    <div>
-                                        <h3 className="font-semibold text-gray-700 mb-2">옵션 값 설정 (위안화)</h3>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-slate-50">
-                                            <InputControl type="number" label="수수료 (높음)" name="commissionHigh" value={getDisplayValue('importCalc', 'commissionHigh')} onChange={(e) => handleValueChange('importCalc', 'commissionHigh', e.target.value)} unit="¥" icon={<CurrencyYenIcon />} />
-                                            <InputControl type="number" label="수수료 (없음)" name="commissionLow" value={getDisplayValue('importCalc', 'commissionLow')} onChange={(e) => handleValueChange('importCalc', 'commissionLow', e.target.value)} unit="¥" icon={<CurrencyYenIcon />} />
-                                            <InputControl type="number" label="통관비 (낮음)" name="customsFeeLow" value={getDisplayValue('importCalc', 'customsFeeLow')} onChange={(e) => handleValueChange('importCalc', 'customsFeeLow', e.target.value)} unit="¥" icon={<CurrencyYenIcon />} />
-                                            <InputControl type="number" label="통관비 (높음)" name="customsFeeHigh" value={getDisplayValue('importCalc', 'customsFeeHigh')} onChange={(e) => handleValueChange('importCalc', 'customsFeeHigh', e.target.value)} unit="¥" icon={<CurrencyYenIcon />} />
-                                            <InputControl type="number" label="포장 (기본)" name="packagingDefault" value={getDisplayValue('importCalc', 'packagingDefault')} onChange={(e) => handleValueChange('importCalc', 'packagingDefault', e.target.value)} unit="¥" icon={<CurrencyYenIcon />} />
-                                            <InputControl type="number" label="포장 (아우터)" name="packagingOuter" value={getDisplayValue('importCalc', 'packagingOuter')} onChange={(e) => handleValueChange('importCalc', 'packagingOuter', e.target.value)} unit="¥" icon={<CurrencyYenIcon />} />
-                                            <InputControl type="number" label="포장 (없음)" name="packagingNone" value={getDisplayValue('importCalc', 'packagingNone')} onChange={(e) => handleValueChange('importCalc', 'packagingNone', e.target.value)} unit="¥" icon={<CurrencyYenIcon />} />
-                                            <InputControl type="number" label="라벨 (일반)" name="labelDefault" value={getDisplayValue('importCalc', 'labelDefault')} onChange={(e) => handleValueChange('importCalc', 'labelDefault', e.target.value)} unit="¥" icon={<CurrencyYenIcon />} />
-                                            <InputControl type="number" label="라벨 (없음)" name="labelNone" value={getDisplayValue('importCalc', 'labelNone')} onChange={(e) => handleValueChange('importCalc', 'labelNone', e.target.value)} unit="¥" icon={<CurrencyYenIcon />} />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold text-gray-700 mb-2">추가 비용 (위안화)</h3>
-                                        <CostListManager 
-                                            costs={localSettings.importCalc.additionalCosts} 
-                                            onChange={(newList) => handleListChange('importCalc', 'additionalCosts', newList)} 
-                                            unit="¥" 
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {/* --- Common Tab --- */}
-                            {activeTab === 'common' && (
-                                 <div className="space-y-6">
-                                    <div>
-                                        <h3 className="font-semibold text-gray-700 mb-2">공통 값 설정</h3>
-                                        <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-slate-50">
-                                            <InputControl type="number" label="부가가치세" name="vatRate" value={getDisplayValue('common', 'vatRate')} onChange={(e) => handleValueChange('common', 'vatRate', e.target.value)} unit="%" icon={<PercentageIcon />} />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Footer */}
-                        <div className="mt-6 pt-4 border-t flex justify-between items-center">
-                            <button onClick={handleResetClick} className="px-4 py-2 text-sm font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">기본값 복원</button>
-                            <div>
-                                <button onClick={onClose} className="px-4 py-2 mr-2 text-sm font-semibold bg-white text-gray-700 border rounded-lg hover:bg-gray-50">취소</button>
-                                <button onClick={handleSaveClick} className="px-4 py-2 text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">저장</button>
-                            </div>
-                        </div>
-                    </div>
-                </div> 
-            );
-        };
         
         // --- From components/CustomsCalculator.tsx ---
-        // --- MODIFIED: Accepts settings and commonSettings props ---
-        const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare, settings, commonSettings }) => {
+        const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
               const formRef = useRef(null);
               const [isAnalysisOpen, setAnalysisOpen] = useState(false);
               const [saveButtonText, setSaveButtonText] = useState('비교용으로 저장');
@@ -818,9 +572,6 @@
               const [liveRates, setLiveRates] = useState({ krw: null, cny: null });
               const [rateStatus, setRateStatus] = useState('loading');
               
-              // Get fixedCosts list from the settings prop
-              const fixedCosts = settings.fixedCosts;
-
               const [formData, setFormData] = useState({
                 productQuantity: '1000',
                 unitPrice: '10',
@@ -831,8 +582,9 @@
                 tariffRate: '8',
                 shippingType: 'LCL',
                 containerCost: '',
-                commissionType: 'percentage',
-                commissionValue: '0',
+                // --- NEW FORM STATES ---
+                commissionType: 'percentage', // 'percentage' or 'perItem'
+                commissionValue: '0', // Stored as string like other inputs
               });
 
               useEffect(() => {
@@ -863,20 +615,20 @@
 
                 const handleModeChange = useCallback((e) => {
                   setCalculationMode(e.target.value);
-                  if (e.target.value === 'box' && formData.commissionType === 'perItem') {
-                      setFormData(prev => ({ ...prev, commissionType: 'percentage', commissionValue: '0' }));
-                  }
-                }, [formData.commissionType]);
+                }, []);
               
                 const handleKeyDown = useCallback((e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     const form = formRef.current;
                     if (!form) return;
+                
                     const focusable = Array.from(
                       form.querySelectorAll('input:not([type="radio"]), select')
                     );
+                    
                     const index = focusable.indexOf(e.target);
+                
                     if (index > -1 && index < focusable.length - 1) {
                       focusable[index + 1].focus();
                     } else if (index === focusable.length - 1) {
@@ -885,80 +637,103 @@
                   }
                 }, []);
 
-                // --- MODIFIED: Use settings and commonSettings in calculation ---
                 const results = useMemo(() => {
-                  const exchangeRateValue = parseFloat(exchangeRate) || 1; 
-                  const tariffRateValue = parseFloat(formData.tariffRate) / 100; 
-                  const { shippingType, containerCost, commissionType, commissionValue } = formData; 
-                  const weightPerBox = parseFloat(formData.weightPerBox) || 0; 
-                  let totalBoxes, totalProductPriceUSD, totalWeight, productQuantity = 0, costPerItem = 0, commissionAmountKRW = 0;
+                  const exchangeRateValue = parseFloat(exchangeRate) || 1;
+                  const tariffRateValue = parseFloat(formData.tariffRate) / 100;
+                  const { shippingType, containerCost, commissionType, commissionValue } = formData; // Added commission fields
+                  const weightPerBox = parseFloat(formData.weightPerBox) || 0;
                   
+                  let totalBoxes;
+                  let totalProductPriceUSD;
+                  let totalWeight;
+                  let productQuantity = 0;
+                  let costPerItem = 0;
+                  let commissionAmountKRW = 0; // --- NEW ---
+
                   if (exchangeRateValue === 0) return null;
-                  
-                  if (calculationMode === 'product') { 
-                      productQuantity = parseFloat(formData.productQuantity) || 0; 
-                      const unitPrice = parseFloat(formData.unitPrice) || 0; 
-                      const quantityPerBox = parseFloat(formData.quantityPerBox) || 1; 
-                      if (productQuantity === 0 || unitPrice === 0 || quantityPerBox === 0) return null; 
-                      totalBoxes = Math.ceil(productQuantity / quantityPerBox); 
-                      totalProductPriceUSD = productQuantity * unitPrice; 
-                  } else { 
-                      totalBoxes = parseFloat(formData.boxQuantity) || 0; 
-                      totalProductPriceUSD = parseFloat(formData.totalProductPrice) || 0; 
-                      if (totalBoxes === 0 || totalProductPriceUSD === 0) return null; 
-                      if (commissionType === 'perItem') commissionAmountKRW = 0; 
+
+                  if (calculationMode === 'product') {
+                      productQuantity = parseFloat(formData.productQuantity) || 0;
+                      const unitPrice = parseFloat(formData.unitPrice) || 0;
+                      const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
+                      
+                      if (productQuantity === 0 || unitPrice === 0 || quantityPerBox === 0) return null;
+
+                      totalBoxes = Math.ceil(productQuantity / quantityPerBox);
+                      totalProductPriceUSD = productQuantity * unitPrice;
+                  } else { // box mode
+                      totalBoxes = parseFloat(formData.boxQuantity) || 0;
+                      totalProductPriceUSD = parseFloat(formData.totalProductPrice) || 0;
+
+                      if (totalBoxes === 0 || totalProductPriceUSD === 0) return null;
+                      // Note: Per-item commission cannot be calculated in box mode
+                      if (commissionType === 'perItem') {
+                          // Optionally, show a warning or disable per-item in box mode
+                          // For now, commission will be 0 in this case
+                      }
                   }
+
+                  totalWeight = totalBoxes * weightPerBox;
+                  const cbm = totalWeight / CBM_WEIGHT_DIVISOR;
                   
-                  totalWeight = totalBoxes * weightPerBox; 
-                  
-                  // --- USE SETTINGS ---
-                  const cbm = totalWeight / settings.cbmDivisor; 
-                  let oceanFreightKRW; 
-                  if (shippingType === 'FCL') oceanFreightKRW = parseFloat(containerCost) || 0; 
-                  else oceanFreightKRW = cbm * settings.oceanFreightRate; 
-                  // --- END USE SETTINGS ---
-                  
-                  const oceanFreightUSD = oceanFreightKRW / exchangeRateValue; 
-                  const taxableBaseUSD = totalProductPriceUSD + oceanFreightUSD; 
-                  const tariffAmountUSD = taxableBaseUSD * tariffRateValue; 
-                  const vatBaseUSD = taxableBaseUSD + tariffAmountUSD; 
-                  
-                  // --- USE COMMON SETTINGS ---
-                  const vatAmountUSD = vatBaseUSD * commonSettings.vatRate; 
-                  // --- END USE COMMON SETTINGS ---
-                  
-                  const totalProductPriceKRW = totalProductPriceUSD * exchangeRateValue; 
-                  const tariffAmount = tariffAmountUSD * exchangeRateValue; 
-                  const vatAmount = vatAmountUSD * exchangeRateValue; 
+                  let oceanFreightKRW;
+                  if (shippingType === 'FCL') {
+                      oceanFreightKRW = parseFloat(containerCost) || 0;
+                  } else { // LCL
+                      oceanFreightKRW = cbm * OCEAN_FREIGHT_RATE_PER_CBM;
+                  }
+
+                  const oceanFreightUSD = oceanFreightKRW / exchangeRateValue;
+                  const taxableBaseUSD = totalProductPriceUSD + oceanFreightUSD;
+                  const tariffAmountUSD = taxableBaseUSD * tariffRateValue;
+                  const vatBaseUSD = taxableBaseUSD + tariffAmountUSD;
+                  const vatAmountUSD = vatBaseUSD * VAT_RATE;
+                
+                  const totalProductPriceKRW = totalProductPriceUSD * exchangeRateValue;
+                  const tariffAmount = tariffAmountUSD * exchangeRateValue;
+                  const vatAmount = vatAmountUSD * exchangeRateValue;
                   const totalTaxes = tariffAmount + vatAmount;
-                  
-                  const commissionValueNum = parseFloat(commissionValue) || 0; 
-                  if (commissionType === 'percentage') { 
-                      commissionAmountKRW = totalProductPriceKRW * (commissionValueNum / 100); 
-                  } else if (commissionType === 'perItem' && calculationMode === 'product' && productQuantity > 0) { 
-                      commissionAmountKRW = commissionValueNum * productQuantity; 
+                
+                  // --- Calculate Commission ---
+                  const commissionValueNum = parseFloat(commissionValue) || 0;
+                  if (commissionType === 'percentage') {
+                      commissionAmountKRW = totalProductPriceKRW * (commissionValueNum / 100);
+                  } else if (commissionType === 'perItem' && calculationMode === 'product' && productQuantity > 0) {
+                      commissionAmountKRW = commissionValueNum * productQuantity;
                   }
+                  // --- End Commission Calc ---
                   
-                  const taxableBase = totalProductPriceKRW + oceanFreightKRW; 
+                  const taxableBase = totalProductPriceKRW + oceanFreightKRW;
+                  // --- Add commission to total cost ---
+                  const totalCost = DOCS_FEE + CO_FEE + oceanFreightKRW + totalTaxes + commissionAmountKRW; 
                   
-                  // --- Use fixedCosts (which came from settings) ---
-                  const totalDynamicFixedCosts = Array.isArray(fixedCosts) ? fixedCosts.reduce((sum, cost) => sum + (Number(cost.value) || 0), 0) : 0; 
-                  const totalCost = totalDynamicFixedCosts + oceanFreightKRW + totalTaxes + commissionAmountKRW; 
-                  // --- END ---
-                  
-                  if (calculationMode === 'product' && productQuantity > 0) { 
+                  if (calculationMode === 'product' && productQuantity > 0) {
+                      // --- Include commission in per-item cost ---
                       costPerItem = (totalProductPriceKRW + totalCost) / productQuantity; 
                   }
-                  
-                  return { 
-                    totalProductPriceUSD, totalProductPriceKRW, totalBoxes, totalWeight, cbm, oceanFreightKRW, 
-                    taxableBase, tariffAmount, vatAmount, totalTaxes, 
-                    commissionAmountKRW, totalCost, costPerItem 
+                
+                  return {
+                    totalProductPriceUSD,
+                    totalProductPriceKRW,
+                    totalBoxes,
+                    totalWeight,
+                    cbm,
+                    oceanFreightKRW,
+                    taxableBase,
+                    tariffAmount,
+                    vatAmount,
+                    totalTaxes,
+                    docsFee: DOCS_FEE,
+                    coFee: CO_FEE,
+                    commissionAmountKRW, // --- NEW ---
+                    totalCost,
+                    costPerItem,
                   };
-              }, [formData, calculationMode, exchangeRate, settings, commonSettings, fixedCosts]); // Dependencies updated
+                }, [formData, calculationMode, exchangeRate]); // Added commission fields to dependency array
               
               const handleSave = () => {
                   if (isSaving) return;
+                  // Pass results including commission to save function
                   onSaveCompare('customs', { results, shippingType: formData.shippingType }); 
                   setSaveButtonText('✅ 저장됨!');
                   setIsSaving(true);
@@ -971,8 +746,10 @@
               // --- Icons ---
               const CalculatorIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 14h.01M12 11h.01M15 11h.01M9 11h.01M12 21a9 9 0 110-18 9 9 0 010 18z" /></svg>);
               const CurrencyDollarIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 12v-2m-3-4H9m6 0h-3m-3-4h3m0 0V6m0 0h-3" /></svg>);
+              const CurrencyWonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7l4 8 4-8M6 12h12m-12 3h12" /></svg>);
               const BoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>);
-              // ScaleIcon and PercentageIcon are global
+              const ScaleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l-6-2m6 2l-3 1m-3-1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>);
+              const PercentageIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 16l-4-4m0 0l4-4m-4 4h18m-4 4l4-4m0 0l-4-4m-4 8a2 2 0 11-4 0 2 2 0 014 0zM5 8a2 2 0 100-4 2 2 0 000 4z" /></svg>);
 
               // --- Field Definitions ---
               const productModeFields = [
@@ -987,12 +764,14 @@
               const calculationModeOptions = [{ label: '상품기준', value: 'product' }, { label: '박스기준', value: 'box' }];
               const shippingOptions = [{ label: 'LCL', value: 'LCL' }, { label: 'FCL', value: 'FCL' }];
               const tariffOptions = [{ label: '0%', value: '0' }, { label: '8%', value: '8' }];
+              // --- NEW: Commission Options ---
               const commissionTypeOptions = [{ label: '퍼센트(%)', value: 'percentage' }, { label: '개당(원)', value: 'perItem' }];
 
               return (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
-                    <AnalysisModal show={isAnalysisOpen} onClose={() => setAnalysisOpen(false)} results={results} calculatorType="customs" fixedCosts={fixedCosts}/>
+                    <AnalysisModal show={isAnalysisOpen} onClose={() => setAnalysisOpen(false)} results={results} calculatorType="customs" />
                     <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
+                      {/* Calculation Mode & Shipping Type */}
                       <div className="grid grid-cols-2 gap-x-4 mb-8">
                           <div>
                               <h3 className="text-base font-semibold text-gray-800 mb-3 text-center">계산 기준</h3>
@@ -1020,32 +799,42 @@
 
                       <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">상세 정보 입력</h2>
                       
+                      {/* --- Input Fields --- */}
                       <div className="space-y-6">
+                        {/* Product/Box Details */}
                         {(calculationMode === 'product' ? productModeFields : boxModeFields).map(field => (
                           <InputControl key={field.name} {...field} value={formData[field.name]} onChange={handleInputChange} onKeyDown={handleKeyDown} />
                         ))}
+
+                        {/* Weight */}
                         <InputControl label="박스당 무게" name="weightPerBox" value={formData.weightPerBox} onChange={handleInputChange} unit="kg/박스" icon={<ScaleIcon />} onKeyDown={handleKeyDown} />
+
+                        {/* Exchange Rate */}
                         <div>
                             <InputControl label="고시환율" name="exchangeRate" value={exchangeRate} onChange={(e) => onExchangeRateChange(e.target.value)} unit="원-달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
                             <p className="text-xs text-gray-500 mt-1 px-1">정확한 계산을 위해 <a href="https://unipass.customs.go.kr/csp/index.do?tgMenuId=MYC_EXIM_005" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline font-medium">관세청 고시환율</a>을 직접 입력해주세요.</p>
                         </div>
                         
+                        {/* --- NEW: Commission Section --- */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">수수료</label>
                           <div className="grid grid-cols-2 gap-x-2">
+                              {/* Commission Type Selection */}
                               <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 h-full">
                                   {commissionTypeOptions.map((option) => (
                                       <label key={option.value} className={`relative flex-1 cursor-pointer py-2.5 px-3 text-center text-xs sm:text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${
                                           formData.commissionType === option.value ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'
                                       } transition-all duration-300 ease-in-out`}>
                                           <input type="radio" name="commissionType" value={option.value} checked={formData.commissionType === option.value} onChange={handleInputChange} className="sr-only" aria-labelledby={`commission-label-${option.value}`} 
+                                            // Disable 'perItem' if in 'box' calculation mode
                                             disabled={calculationMode === 'box' && option.value === 'perItem'} />
                                           <span id={`commission-label-${option.value}`} className={calculationMode === 'box' && option.value === 'perItem' ? 'opacity-50 cursor-not-allowed' : ''}>{option.label}</span>
                                       </label>
                                   ))}
                               </fieldset>
+                              {/* Commission Value Input */}
                               <InputControl 
-                                label=""
+                                label="" // No label needed here as it's part of the section
                                 name="commissionValue" 
                                 value={formData.commissionValue} 
                                 onChange={handleInputChange} 
@@ -1053,14 +842,18 @@
                                 icon={formData.commissionType === 'percentage' ? <PercentageIcon /> : <CurrencyWonIcon />} 
                                 onKeyDown={handleKeyDown} 
                                 placeholder="0"
+                                // Disable if 'perItem' is selected in 'box' mode
                                 disabled={calculationMode === 'box' && formData.commissionType === 'perItem'}
                               />
                           </div>
+                           {/* Warning for 'perItem' in 'box' mode */}
                            {calculationMode === 'box' && formData.commissionType === 'perItem' && (
                                <p className="text-xs text-red-600 mt-1 px-1">박스 기준 계산 시 개당 수수료는 적용되지 않습니다.</p>
                            )}
                         </div>
+                        {/* --- END NEW --- */}
                         
+                        {/* Tariff */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">관세</label>
                           <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60">
@@ -1073,11 +866,13 @@
                           </fieldset>
                         </div>
 
+                        {/* Live Rates */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">현재 환율 (참고용)</label>
                             <LiveRateDisplay rates={liveRates} status={rateStatus} />
                         </div>
 
+                        {/* Container Cost (Conditional) */}
                         <div className={`grid transition-all duration-300 ease-in-out ${formData.shippingType === 'FCL' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
                           <div className="overflow-hidden">
                             <InputControl label="컨테이너 비용" name="containerCost" value={formData.containerCost} onChange={handleInputChange} unit="원" icon={<CurrencyWonIcon />} onKeyDown={handleKeyDown} />
@@ -1090,8 +885,7 @@
                     {/* Results Area */}
                     {results ? (
                       <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
-                            <ResultCard results={results} fixedCosts={fixedCosts} />
-                            
+                            <ResultCard results={results} />
                             <div className="mt-6 pt-6 border-t border-dashed">
                                 <h3 className="text-sm font-bold text-center text-emerald-700 mb-3">✨ Gemini 기능</h3>
                                 <div className="flex gap-2 justify-center">
@@ -1112,8 +906,7 @@
         };
 
         // --- From components/ImportCalculator.tsx ---
-        // --- MODIFIED: Accepts settings prop ---
-        const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare, settings }) => {
+        const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
             const formRef = useRef(null);
             const [isAnalysisOpen, setAnalysisOpen] = useState(false);
             const [saveButtonText, setSaveButtonText] = useState('비교용으로 저장');
@@ -1123,13 +916,12 @@
             const [liveRates, setLiveRates] = useState({ krw: null, cny: null });
             const [rateStatus, setRateStatus] = useState('loading');
 
-            // --- MODIFIED: Use settings for default form state ---
             const [formData, setFormData] = useState({
                 productCost: '10',
-                commissionRate: String(settings.commissionHigh),
-                customsFeeRate: String(settings.customsFeeLow),
-                packagingBag: String(settings.packagingDefault),
-                label: String(settings.labelDefault),
+                commissionRate: String(COMMISSION_RATE_HIGH),
+                customsFeeRate: String(CUSTOMS_FEE_RATE_LOW),
+                packagingBag: String(PACKAGING_BAG_DEFAULT),
+                label: String(LABEL_DEFAULT),
             });
 
             useEffect(() => {
@@ -1174,7 +966,6 @@
                 }
             }, []);
 
-            // --- MODIFIED: Use settings in calculation ---
             const results = useMemo(() => {
                 const productCost = parseFloat(formData.productCost) || 0;
                 const packagingCost = parseFloat(formData.packagingBag) || 0;
@@ -1185,14 +976,7 @@
 
                 if (productCost === 0 || !cnyToUsdRate || exchangeRateValue === 0) return null;
 
-                // --- NEW: Add additional costs from settings ---
-                const totalAdditionalCostsCNY = Array.isArray(settings.additionalCosts)
-                    ? settings.additionalCosts.reduce((sum, cost) => sum + (Number(cost.value) || 0), 0)
-                    : 0;
-
-                const baseCostCNY = productCost + packagingCost + labelCost + totalAdditionalCostsCNY;
-                // --- END NEW ---
-
+                const baseCostCNY = productCost + packagingCost + labelCost;
                 const commissionCNY = baseCostCNY * commissionRate;
                 const totalCostCNY = baseCostCNY + commissionCNY;
 
@@ -1202,16 +986,8 @@
                 const customsFeeKRW = totalCostKRW * customsFeeRate;
                 const finalImportCost = totalCostKRW + customsFeeKRW;
 
-                return { 
-                    baseCostCNY, 
-                    commissionCNY, 
-                    totalCostCNY, 
-                    totalCostUSD, 
-                    totalCostKRW, 
-                    customsFeeKRW, 
-                    finalImportCost 
-                };
-            }, [formData, cnyToUsdRate, exchangeRate, settings]); // settings added to dependency
+                return { baseCostCNY, commissionCNY, totalCostCNY, totalCostUSD, totalCostKRW, customsFeeKRW, finalImportCost };
+            }, [formData, cnyToUsdRate, exchangeRate]);
             
             const handleSave = () => {
                 if (isSaving) return;
@@ -1224,11 +1000,11 @@
                 }, 1500);
             };
 
-            // CurrencyYenIcon is global now
+            const CurrencyYenIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 4h4m-5 4h5M5 8h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg>);
 
-            const formatKRW = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0);
-            const formatUSD = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
-            const formatCNY = (value) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)} ¥`;
+            const formatKRW = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0); // Added fallback
+            const formatUSD = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0); // Added fallback
+            const formatCNY = (value) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)} ¥`; // Added fallback
             const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
 
             const ToggleFieldset = ({ label, name, value, options, onChange }) => (
@@ -1245,25 +1021,11 @@
                 </div>
             );
 
-            // --- MODIFIED: Build options from settings prop ---
             const options = {
-                commissionRate: [
-                    { label: '높음', value: String(settings.commissionHigh) }, 
-                    { label: '없음', value: String(settings.commissionLow) }
-                ],
-                customsFeeRate: [
-                    { label: '낮음', value: String(settings.customsFeeLow) }, 
-                    { label: '높음', value: String(settings.customsFeeHigh) }
-                ],
-                packagingBag: [
-                    { label: '4호-기본', value: String(settings.packagingDefault) }, 
-                    { label: '아우터', value: String(settings.packagingOuter) }, 
-                    { label: '없음', value: String(settings.packagingNone) }
-                ],
-                label: [
-                    { label: '일반라벨', value: String(settings.labelDefault) }, 
-                    { label: '없음', value: String(settings.labelNone) }
-                ],
+                commissionRate: [{ label: '3.5%', value: String(COMMISSION_RATE_HIGH) }, { label: '0%', value: String(COMMISSION_RATE_LOW) }],
+                customsFeeRate: [{ label: '22%', value: String(CUSTOMS_FEE_RATE_LOW) }, { label: '29%', value: String(CUSTOMS_FEE_RATE_HIGH) }],
+                packagingBag: [{ label: '4호-기본', value: String(PACKAGING_BAG_DEFAULT) }, { label: '아우터', value: String(PACKAGING_BAG_OUTER) }, { label: '없음', value: String(PACKAGING_BAG_NONE) }],
+                label: [{ label: '일반라벨', value: String(LABEL_DEFAULT) }, { label: '없음', value: String(LABEL_NONE) }],
             };
 
             return (
@@ -1299,8 +1061,7 @@
                                 </p>
                             </div>
                             <div className="space-y-2 text-sm">
-                                {/* baseCostCNY now includes additional costs */}
-                                <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">상품원가 + 부자재 + 추가비용 (CNY)</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.baseCostCNY} formatter={formatCNY} /></span></div>
+                                <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">상품원가 + 부자재 (CNY)</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.baseCostCNY} formatter={formatCNY} /></span></div>
                                 <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">수수료 (CNY)</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.commissionCNY} formatter={formatCNY} /></span></div>
                                 <div className="flex justify-between py-2 border-b border-slate-200 font-bold"><span className="text-gray-700">총 비용 (CNY)</span><span className="text-gray-900"><AnimatedNumber value={results.totalCostCNY} formatter={formatCNY} /></span></div>
                                 <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">총 비용 (USD)</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.totalCostUSD} formatter={formatUSD} /></span></div>
@@ -1427,7 +1188,7 @@
             const PalletIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H3a1 1 0 01-1-1V5zM3 9h14v2H3V9zM3 13h14v2H3v-2z" /></svg>);
             const ContainerIcon = ({ size }) => (<svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><rect x="3" y="6" width="18" height="12" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="3" y1="14" x2="21" y2="14" /><text x="50%" y="52%" dominantBaseline="middle" textAnchor="middle" fontSize="6" fill="currentColor" fontWeight="bold">{size}ft</text></svg>);
 
-            const formatNumber = (value) => new Intl.NumberFormat('ko-KR').format(Math.round(value || 0));
+            const formatNumber = (value) => new Intl.NumberFormat('ko-KR').format(Math.round(value || 0)); // Added fallback
             const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
 
             const inputFields = [{ label: "박스 길이", name: "boxLength", unit: "mm" }, { label: "박스 너비", name: "boxWidth", unit: "mm" }, { label: "박스 높이", name: "boxHeight", unit: "mm" }];
@@ -1438,7 +1199,7 @@
                     <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
                         <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">정보 입력</h2>
                         <div className="space-y-6">
-                            {inputFields.map(field => (<InputControl key={field.name} {...field} value={formData[field.name]} onChange={handleInputChange} onKeyDown={handleKeyDown} icon={<DimensionIcon />} />))}
+                            {inputFields.map(field => (<InputControl key={field.name} {...field} value={formData[field.name]} onChange={handleInputChange} onKeyDown={handleKeyDown} />))}
                             <div>
                                 <label htmlFor="palletType" className="block text-sm font-medium text-gray-700 mb-1">파레트 종류</label>
                                 <div className="relative">
@@ -1497,61 +1258,10 @@
              const [exchangeRate, setExchangeRate] = useState(() => localStorage.getItem('exchangeRate') || '1350');
             const [comparisonScenarios, setComparisonScenarios] = useState([]);
             const [isComparisonOpen, setComparisonOpen] = useState(false);
-            
-            const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-            
-            // --- MODIFIED: Use new settings structure ---
-            const [settings, setSettings] = useState(() => {
-                try {
-                    const savedSettings = localStorage.getItem('appSettings');
-                    // Use deep copy of defaults
-                    const defaultCopy = JSON.parse(JSON.stringify(defaultSettings));
-                    if (savedSettings) {
-                        const parsed = JSON.parse(savedSettings);
-                        // Merge saved settings onto defaults (to handle new properties in defaults)
-                        // This merge is basic; a deep merge utility would be more robust
-                        if (parsed.common) Object.assign(defaultCopy.common, parsed.common);
-                        if (parsed.importCalc) Object.assign(defaultCopy.importCalc, parsed.importCalc);
-                        if (parsed.customsCalc) Object.assign(defaultCopy.customsCalc, parsed.customsCalc);
-                        
-                        // Overwrite arrays completely, as merging them is complex
-                        if (parsed.importCalc && parsed.importCalc.additionalCosts) {
-                            defaultCopy.importCalc.additionalCosts = parsed.importCalc.additionalCosts;
-                        }
-                        if (parsed.customsCalc && parsed.customsCalc.fixedCosts) {
-                             defaultCopy.customsCalc.fixedCosts = parsed.customsCalc.fixedCosts;
-                        }
-                        return defaultCopy;
-                    }
-                    return defaultCopy; // Return deep copy of defaults
-                } catch (e) {
-                    console.error("Failed to parse appSettings from localStorage", e);
-                    return JSON.parse(JSON.stringify(defaultSettings)); // Return deep copy
-                }
-            });
 
             useEffect(() => { localStorage.setItem('exchangeRate', exchangeRate); }, [exchangeRate]);
-            useEffect(() => { 
-                try { 
-                    const saved = localStorage.getItem('comparisonScenarios'); 
-                    if(saved) setComparisonScenarios(JSON.parse(saved)); 
-                } catch (e) { console.error("Failed to parse scenarios", e) } 
-            }, []);
+            useEffect(() => { try { const saved = localStorage.getItem('comparisonScenarios'); if(saved) setComparisonScenarios(JSON.parse(saved)); } catch (e) { console.error("Failed to parse scenarios", e) } }, []);
             
-            const handleOpenSettings = () => setIsSettingsOpen(true);
-            const handleCloseSettings = () => setIsSettingsOpen(false);
-            
-            // --- MODIFIED: Save/Reset full settings object ---
-            const handleSaveSettings = (newSettings) => {
-                setSettings(newSettings);
-                localStorage.setItem('appSettings', JSON.stringify(newSettings));
-            };
-            const handleResetSettings = () => {
-                const defaultCopy = JSON.parse(JSON.stringify(defaultSettings));
-                setSettings(defaultCopy);
-                localStorage.setItem('appSettings', JSON.stringify(defaultCopy));
-            };
-
             const handleSaveCompare = (type, data) => {
                 const newScenario = { type, data, id: Date.now() + Math.random() };
                 setComparisonScenarios(prev => {
@@ -1567,12 +1277,11 @@
                 setComparisonOpen(false);
             };
 
-            // --- MODIFIED: Pass settings objects to calculators ---
             const tabs = useMemo(() => [
-                { id: 'import', title: '수입가', component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} settings={settings.importCalc} /> },
-                { id: 'customs', title: '통관비', component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} settings={settings.customsCalc} commonSettings={settings.common} /> },
+                { id: 'import', title: '수입가', component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
+                { id: 'customs', title: '통관비', component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
                 { id: 'shipping', title: '선적', component: <ShippingCalculator /> },
-            ], [exchangeRate, comparisonScenarios, settings]); // settings added
+            ], [exchangeRate, comparisonScenarios]);
 
             // --- Swipe Logic ---
             const touchStartX = useRef(null); const touchDeltaX = useRef(0); const [isSwiping, setIsSwiping] = useState(false);
@@ -1590,37 +1299,25 @@
 
             return (
                 <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
-                    <SettingsModal 
-                        show={isSettingsOpen} 
-                        onClose={handleCloseSettings} 
-                        currentSettings={settings} // Pass full settings object
-                        onSave={handleSaveSettings} 
-                        onReset={handleResetSettings} 
-                    />
-                    
                     <ComparisonModal show={isComparisonOpen} onClose={() => setComparisonOpen(false)} onClear={handleClearCompare} scenarios={comparisonScenarios} />
-                    
                     <div className="w-full max-w-6xl mx-auto flex flex-col h-full">
-                        <header className="text-center mb-10 relative">
+                        {/* Header */}
+                        <header className="text-center mb-10">
                             <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500 pb-2">비용 계산기</h1>
                             <p className="mt-2 text-lg text-slate-600">수입에 필요한 비용을 간편하게 계산해보세요.</p>
-                            <button 
-                                onClick={handleOpenSettings} 
-                                className="absolute top-0 right-0 p-2 text-slate-500 hover:text-emerald-600 transition-colors"
-                                aria-label="설정"
-                            >
-                                <SettingsIcon />
-                            </button>
                         </header>
 
+                        {/* Compare Button */}
                         {comparisonScenarios.length > 0 && (
                             <div className="fixed bottom-5 right-5 z-40">
-                                <button onClick={() => setComparisonOpen(true)} className="bg-blue-600 text-white font-bold py-3 px-5 rounded-full shadow-lg hover:bg-blue-700 flex items-center gap-2"><CompareIcon /><span>비교하기 ({comparisonScenarios.length}/2)</span></button>
+                                <button onClick={() => setComparisonOpen(true)} className="bg-blue-600 text-white font-bold py-3 px-5 rounded-full shadow-lg hover:bg-blue-700 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" /></svg><span>비교하기 ({comparisonScenarios.length}/2)</span></button>
                             </div>
                         )}
 
+                        {/* Tabs */}
                         <div className="w-full max-w-4xl mx-auto"><div className="flex mb-[-1px] z-10 relative">{tabs.map(tab => (<button key={tab.id} onClick={() => setActiveTabId(tab.id)} className={`${tabStyles} ${activeTabId === tab.id ? activeTabStyles : inactiveTabStyles}`} aria-selected={activeTabId === tab.id}><span className="sm:hidden">{tab.title}<br />계산기</span><span className="hidden sm:inline">{tab.title} 계산기</span></button>))}</div></div>
 
+                        {/* Main Content Area */}
                         <main className="w-full overflow-hidden" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
                             <div className="flex" style={{ transform: transformValue, transition: isSwiping ? 'none' : 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}>
                                 {tabs.map(tab => (<div key={tab.id} className="w-full flex-shrink-0">{tab.component}</div>))}
