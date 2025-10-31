@@ -1,89 +1,347 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>통합계산기</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18.2.0",
-        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client"
-      }
-    }
-    </script>
-    <style>
-      body {
-        font-family: 'Noto Sans KR', sans-serif;
-      }
-      /* Add keyframes for animations for a smoother experience */
-      @keyframes fade-in {
-        0% { opacity: 0; }
-        100% { opacity: 1; }
-      }
-      @keyframes fade-in-slide-up {
-        0% {
-          opacity: 0;
-          transform: translateY(20px);
-        }
-        100% {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-      .animate-fade-in {
-        animation: fade-in 0.3s ease-out forwards;
-      }
-      .animate-fade-in-slide-up {
-        animation: fade-in-slide-up 0.5s ease-out forwards;
-      }
-    </style>
-</head>
 <body class="bg-slate-100">
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+        import React, { useState, useCallback, useEffect, useMemo, useRef, createContext, useContext } from 'react';
         import ReactDOM from 'react-dom/client';
 
-        // --- From constants.ts ---
-        const DOCS_FEE = 88000;
-        const CO_FEE = 43700;
-        const OCEAN_FREIGHT_RATE_PER_CBM = 110000;
-        const CBM_WEIGHT_DIVISOR = 250;
-        const VAT_RATE = 0.1;
-
-        const COMMISSION_RATE_HIGH = 0.035;
-        const COMMISSION_RATE_LOW = 0;
-        const CUSTOMS_FEE_RATE_HIGH = 0.29;
-        const CUSTOMS_FEE_RATE_LOW = 0.22;
-
-        const PACKAGING_BAG_DEFAULT = 0.31;
-        const PACKAGING_BAG_OUTER = 0.46;
-        const PACKAGING_BAG_NONE = 0;
-        const LABEL_DEFAULT = 0.03;
-        const LABEL_NONE = 0;
-
-        const CONTAINER_DIMENSIONS = {
-          FT20: { length: 5898, width: 2352, height: 2393 },
-          FT40: { length: 12032, width: 2352, height: 2393 },
+        // --- 1. Default Settings (NEW) ---
+        // All hard-coded constants are now moved here as defaults.
+        const DEFAULT_SETTINGS = {
+          import: {
+            commissionRates: [
+              { id: 'import-cr-1', label: '3.5%', value: 0.035 },
+              { id: 'import-cr-2', label: '0%', value: 0 },
+            ],
+            customsFeeRates: [
+              { id: 'import-cfr-1', label: '22%', value: 0.22 },
+              { id: 'import-cfr-2', label: '29%', value: 0.29 },
+            ],
+            packagingBags: [
+              { id: 'import-pb-1', label: '4호-기본', value: 0.31 },
+              { id: 'import-pb-2', label: '아우터', value: 0.46 },
+              { id: 'import-pb-3', label: '없음', value: 0 },
+            ],
+            labels: [
+              { id: 'import-l-1', label: '일반라벨', value: 0.03 },
+              { id: 'import-l-2', label: '없음', value: 0 },
+            ],
+          },
+          customs: {
+            fixedFees: [
+              { id: 'customs-ff-1', label: '서류비', value: 88000 },
+              { id: 'customs-ff-2', label: 'CO발급비', value: 43700 },
+            ],
+            rates: [
+              { id: 'customs-r-1', label: 'LCL 해운비 (CBM당)', value: 110000 },
+              { id: 'customs-r-2', label: 'CBM 무게 환산 (kg)', value: 250 },
+              { id: 'customs-r-3', label: '부가세율 (%)', value: 10 }, // Stored as 10, used as 0.1
+            ],
+            tariffRates: [
+              { id: 'customs-tr-1', label: '0%', value: '0' },
+              { id: 'customs-tr-2', label: '8%', value: '8' },
+            ],
+          },
+          shipping: {
+            containers: [
+              { id: 'ship-c-1', name: '20ft', length: 5898, width: 2352, height: 2393 },
+              { id: 'ship-c-2', name: '40ft', length: 12032, width: 2352, height: 2393 },
+            ],
+            pallets: [
+              { id: 'ship-p-1', name: '없음', length: 0, width: 0, height: 0, value: 'none' },
+              { id: 'ship-p-2', name: '1100x1100', length: 1100, width: 1100, height: 150, value: '1100x1100' },
+              { id: 'ship-p-3', name: '1000x1200', length: 1000, width: 1200, height: 150, value: '1000x1200' },
+              { id: 'ship-p-4', name: '800x1200', length: 800, width: 1200, height: 150, value: '800x1200' },
+              { id: 'ship-p-5', name: '1140x1140', length: 1140, width: 1140, height: 150, value: '1140x1140' },
+            ],
+          },
         };
-        const PALLET_TYPES = {
-            'none': { name: '없음', length: 0, width: 0, height: 0 },
-            '1100x1100': { name: '1100x1100', length: 1100, width: 1100, height: 150 },
-            '1000x1200': { name: '1000x1200', length: 1000, width: 1200, height: 150 },
-            '800x1200': { name: '800x1200', length: 800, width: 1200, height: 150 },
-            '1140x1140': { name: '1140x1140', length: 1140, width: 1140, height: 150 },
+
+        // --- 2. Settings Context (NEW) ---
+        // Manages and provides settings across the app.
+        const SettingsContext = createContext(null);
+        const useSettings = () => {
+            const context = useContext(SettingsContext);
+            if (!context) {
+                throw new Error("useSettings must be used within a SettingsProvider");
+            }
+            return context;
+        };
+
+        const SettingsProvider = ({ children }) => {
+            const [settings, setSettings] = useState(() => {
+                try {
+                    const savedSettings = localStorage.getItem('calculatorSettings');
+                    if (savedSettings) {
+                        // Simple merge to add new default fields if they don't exist
+                        const parsed = JSON.parse(savedSettings);
+                        return {
+                            import: { ...DEFAULT_SETTINGS.import, ...parsed.import },
+                            customs: { ...DEFAULT_SETTINGS.customs, ...parsed.customs },
+                            shipping: { ...DEFAULT_SETTINGS.shipping, ...parsed.shipping },
+                        };
+                    }
+                } catch (e) {
+                    console.error("Failed to parse settings from localStorage", e);
+                }
+                return DEFAULT_SETTINGS;
+            });
+
+            useEffect(() => {
+                try {
+                    localStorage.setItem('calculatorSettings', JSON.stringify(settings));
+                } catch (e) {
+                    console.error("Failed to save settings to localStorage", e);
+                }
+            }, [settings]);
+
+            return (
+                <SettingsContext.Provider value={{ settings, setSettings }}>
+                    {children}
+                </SettingsContext.Provider>
+            );
+        };
+
+
+        // --- 3. New Component: SettingsModal ---
+        const SettingsModal = ({ show, onClose }) => {
+            const { settings, setSettings } = useSettings();
+            const [activeTab, setActiveTab] = useState('import');
+            // Local draft state for editing
+            const [draftSettings, setDraftSettings] = useState(JSON.parse(JSON.stringify(settings))); // Deep copy
+
+            // Reset draft when modal opens
+            useEffect(() => {
+                if (show) {
+                    setDraftSettings(JSON.parse(JSON.stringify(settings)));
+                }
+            }, [show, settings]);
+
+            const handleSave = () => {
+                setSettings(draftSettings);
+                onClose();
+            };
+
+            const handleClose = () => {
+                onClose();
+            };
+
+            const tabs = [
+                { id: 'import', label: '수입가 설정' },
+                { id: 'customs', label: '통관비 설정' },
+                { id: 'shipping', label: '선적 설정' },
+            ];
+
+            const renderContent = () => {
+                switch(activeTab) {
+                    case 'import':
+                        return <ImportSettingsEditor settings={draftSettings.import} setSettings={setDraftSettings} />;
+                    case 'customs':
+                        return <CustomsSettingsEditor settings={draftSettings.customs} setSettings={setDraftSettings} />;
+                    case 'shipping':
+                        return <ShippingSettingsEditor settings={draftSettings.shipping} setSettings={setDraftSettings} />;
+                    default:
+                        return null;
+                }
+            };
+            
+            if (!show) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={handleClose}>
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center border-b p-4">
+                            <h2 className="text-xl font-bold text-gray-800">설정</h2>
+                            <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 font-bold text-2xl">&times;</button>
+                        </div>
+                        
+                        <div className="flex border-b">
+                            {tabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`py-3 px-5 font-semibold text-sm ${activeTab === tab.id ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                        
+                        <div className="overflow-y-auto p-6 space-y-6">
+                            {renderContent()}
+                        </div>
+
+                        <div className="flex justify-end gap-3 p-4 border-t bg-gray-50 rounded-b-2xl">
+                            <button onClick={handleClose} className="px-5 py-2 text-sm font-semibold bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">취소</button>
+                            <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">저장</button>
+                        </div>
+                    </div>
+                </div>
+            );
         };
         
+        // --- 3.1. New Component: EditableList (Helper for SettingsModal) ---
+        // A reusable component to manage lists
+        const EditableList = ({ title, items, setItems, renderItem, createNewItem, moveItem }) => {
+            const handleAddItem = () => {
+                setItems([...items, createNewItem()]);
+            };
+
+            const handleRemoveItem = (id) => {
+                setItems(items.filter(item => item.id !== id));
+            };
+
+            const handleUpdateItem = (updatedItem) => {
+                setItems(items.map(item => item.id === updatedItem.id ? updatedItem : item));
+            };
+
+            return (
+                <div className="border rounded-lg">
+                    <h3 className="text-lg font-semibold text-gray-800 p-4 border-b bg-gray-50 rounded-t-lg">{title}</h3>
+                    <div className="space-y-3 p-4">
+                        {items.map((item, index) => (
+                            <div key={item.id} className="flex items-center gap-2 p-3 bg-white border rounded-md shadow-sm">
+                                <div className="flex flex-col gap-1.5 mr-2">
+                                    <button onClick={() => moveItem(index, index - 1)} disabled={index === 0} className="disabled:opacity-30 text-gray-500 hover:text-emerald-600">&#9650;</button>
+                                    <button onClick={() => moveItem(index, index + 1)} disabled={index === items.length - 1} className="disabled:opacity-30 text-gray-500 hover:text-emerald-600">&#9660;</button>
+                                </div>
+                                <div className="flex-grow">
+                                    {renderItem(item, handleUpdateItem)}
+                                </div>
+                                <button onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:text-red-700 ml-2 font-bold text-xl flex-shrink-0">&times;</button>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="p-4 border-t">
+                        <button onClick={handleAddItem} className="px-4 py-2 text-sm font-semibold bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200">+ 새 항목 추가</button>
+                    </div>
+                </div>
+            );
+        };
+        
+        // --- 3.2. New Component: Settings Editors ---
+        const createGenericItem = () => ({ id: `item-${Date.now()}`, label: '새 항목', value: 0 });
+        
+        // Helper to update settings state
+        const useSettingsEditor = (settings, setSettings) => {
+            const updateList = (listKey, newList) => {
+                setSettings(prev => ({ ...prev, [listKey]: newList }));
+            };
+
+            const moveItem = (listKey, fromIndex, toIndex) => {
+                if (toIndex < 0 || toIndex >= settings[listKey].length) return;
+                const list = [...settings[listKey]];
+                const [movedItem] = list.splice(fromIndex, 1);
+                list.splice(toIndex, 0, movedItem);
+                updateList(listKey, list);
+            };
+            
+            return { updateList, moveItem };
+        };
+        
+        // Generic Input for settings
+        const SettingInput = ({ label, value, onChange, type = "text" }) => (
+            <div className="flex-1 min-w-[100px]">
+                <label className="block text-xs font-medium text-gray-500 mb-0.5">{label}</label>
+                <input
+                    type={type}
+                    value={value}
+                    onChange={onChange}
+                    step={type === "number" ? "any" : undefined}
+                    className="w-full rounded-md border-gray-300 py-1.5 px-2 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm"
+                />
+            </div>
+        );
+
+        // Editor for Import Settings
+        const ImportSettingsEditor = ({ settings, setSettings }) => {
+            const { updateList, moveItem } = useSettingsEditor(settings, setSettings);
+            
+            const renderKVItem = (item, update) => (
+                <div className="flex gap-2 w-full">
+                    <SettingInput label="이름 (Label)" value={item.label} onChange={(e) => update({ ...item, label: e.target.value })} />
+                    <SettingInput label="값 (Value)" value={item.value} type="number" onChange={(e) => update({ ...item, value: parseFloat(e.target.value) || 0 })} />
+                </div>
+            );
+
+            return (
+                <div className="space-y-6">
+                    <EditableList title="수수료 (%) 옵션" items={settings.commissionRates} setItems={(list) => updateList('commissionRates', list)} renderItem={renderKVItem} createNewItem={createGenericItem} moveItem={(from, to) => moveItem('commissionRates', from, to)} />
+                    <EditableList title="통관비 (%) 옵션" items={settings.customsFeeRates} setItems={(list) => updateList('customsFeeRates', list)} renderItem={renderKVItem} createNewItem={createGenericItem} moveItem={(from, to) => moveItem('customsFeeRates', from, to)} />
+                    <EditableList title="포장봉투 (CNY) 옵션" items={settings.packagingBags} setItems={(list) => updateList('packagingBags', list)} renderItem={renderKVItem} createNewItem={createGenericItem} moveItem={(from, to) => moveItem('packagingBags', from, to)} />
+                    <EditableList title="라벨 (CNY) 옵션" items={settings.labels} setItems={(list) => updateList('labels', list)} renderItem={renderKVItem} createNewItem={createGenericItem} moveItem={(from, to) => moveItem('labels', from, to)} />
+                </div>
+            );
+        };
+        
+        // Editor for Customs Settings
+        const CustomsSettingsEditor = ({ settings, setSettings }) => {
+            const { updateList, moveItem } = useSettingsEditor(settings, setSettings);
+
+            const renderKVItem = (item, update) => (
+                <div className="flex gap-2 w-full">
+                    <SettingInput label="이름 (Label)" value={item.label} onChange={(e) => update({ ...item, label: e.target.value })} />
+                    <SettingInput label="값 (Value)" value={item.value} type="number" onChange={(e) => update({ ...item, value: parseFloat(e.target.value) || 0 })} />
+                </div>
+            );
+            
+             const renderTariffItem = (item, update) => (
+                <div className="flex gap-2 w-full">
+                    <SettingInput label="이름 (Label)" value={item.label} onChange={(e) => update({ ...item, label: e.target.value })} />
+                    <SettingInput label="값 (Value)" value={item.value} type="text" onChange={(e) => update({ ...item, value: e.target.value })} />
+                </div>
+            );
+
+            return (
+                <div className="space-y-6">
+                    <EditableList title="고정 수수료 (KRW)" items={settings.fixedFees} setItems={(list) => updateList('fixedFees', list)} renderItem={renderKVItem} createNewItem={createGenericItem} moveItem={(from, to) => moveItem('fixedFees', from, to)} />
+                    <EditableList title="계산 비율" items={settings.rates} setItems={(list) => updateList('rates', list)} renderItem={renderKVItem} createNewItem={createGenericItem} moveItem={(from, to) => moveItem('rates', from, to)} />
+                    <EditableList title="관세 (%) 옵션" items={settings.tariffRates} setItems={(list) => updateList('tariffRates', list)} renderItem={renderTariffItem} createNewItem={() => ({ id: `item-${Date.now()}`, label: '새 관세', value: '0' })} moveItem={(from, to) => moveItem('tariffRates', from, to)} />
+                </div>
+            );
+        };
+        
+        // Editor for Shipping Settings
+        const ShippingSettingsEditor = ({ settings, setSettings }) => {
+            const { updateList, moveItem } = useSettingsEditor(settings, setSettings);
+
+            const renderContainerItem = (item, update) => (
+                 <div className="flex gap-2 w-full flex-wrap">
+                    <SettingInput label="이름" value={item.name} onChange={(e) => update({ ...item, name: e.target.value })} />
+                    <SettingInput label="길이(mm)" value={item.length} type="number" onChange={(e) => update({ ...item, length: parseFloat(e.target.value) || 0 })} />
+                    <SettingInput label="너비(mm)" value={item.width} type="number" onChange={(e) => update({ ...item, width: parseFloat(e.target.value) || 0 })} />
+                    <SettingInput label="높이(mm)" value={item.height} type="number" onChange={(e) => update({ ...item, height: parseFloat(e.target.value) || 0 })} />
+                </div>
+            );
+            
+            const renderPalletItem = (item, update) => (
+                 <div className="flex gap-2 w-full flex-wrap">
+                    <SettingInput label="이름" value={item.name} onChange={(e) => update({ ...item, name: e.target.value })} />
+                    <SettingInput label="값 (Value)" value={item.value} onChange={(e) => update({ ...item, value: e.target.value })} />
+                    <SettingInput label="길이(mm)" value={item.length} type="number" onChange={(e) => update({ ...item, length: parseFloat(e.target.value) || 0 })} />
+                    <SettingInput label="너비(mm)" value={item.width} type="number" onChange={(e) => update({ ...item, width: parseFloat(e.target.value) || 0 })} />
+                    <SettingInput label="높이(mm)" value={item.height} type="number" onChange={(e) => update({ ...item, height: parseFloat(e.target.value) || 0 })} />
+                </div>
+            );
+            
+            const createContainer = () => ({ id: `cont-${Date.now()}`, name: '새 컨테이너', length: 0, width: 0, height: 0 });
+            const createPallet = () => ({ id: `pal-${Date.now()}`, name: '새 파레트', value: 'new-pallet', length: 0, width: 0, height: 0 });
+
+            return (
+                <div className="space-y-6">
+                    <EditableList title="컨테이너 규격" items={settings.containers} setItems={(list) => updateList('containers', list)} renderItem={renderContainerItem} createNewItem={createContainer} moveItem={(from, to) => moveItem('containers', from, to)} />
+                    <EditableList title="파레트 종류" items={settings.pallets} setItems={(list) => updateList('pallets', list)} renderItem={renderPalletItem} createNewItem={createPallet} moveItem={(from, to) => moveItem('pallets', from, to)} />
+                </div>
+            );
+        };
+
+
+        // --- From constants.ts (DELETED) ---
+        // All constants are now in DEFAULT_SETTINGS and managed by SettingsContext
+
+        
         // --- From components/InputControl.tsx ---
-        const InputControl = ({ label, name, value, onChange, unit, placeholder, icon, onKeyDown, type = "number" }) => { // Added type prop
+        const InputControl = ({ label, name, value, onChange, unit, placeholder, icon, onKeyDown, type = "number", disabled = false }) => { // Added disabled prop
           return (
             <div>
               <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
@@ -94,16 +352,16 @@
                   {icon}
                 </div>
                 <input
-                  type={type} // Use type prop
+                  type={type}
                   id={name}
                   name={name}
                   value={value}
                   onChange={onChange}
                   onKeyDown={onKeyDown}
                   placeholder={placeholder || "0"}
-                  // Added step="any" for potential decimal inputs, adjusted padding
                   step={type === "number" ? "any" : undefined} 
-                  className="w-full rounded-md border-gray-300 py-2 pl-10 pr-12 sm:pr-16 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm"
+                  disabled={disabled} // Use disabled prop
+                  className="w-full rounded-md border-gray-300 py-2 pl-10 pr-12 sm:pr-16 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm disabled:bg-gray-100 disabled:opacity-70"
                 />
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                   <span className="text-gray-500 sm:text-sm">{unit}</span>
@@ -118,11 +376,18 @@
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
         );
         
-        // --- NEW ICON ---
         const ReceiptIcon = () => (
            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
            </svg>
+        );
+        
+        // --- NEW ICON: Settings ---
+        const SettingsIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.096 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
         );
 
         // --- NEW COMPONENT: LiveRateDisplay ---
@@ -171,13 +436,13 @@
             return null;
         };
 
-        // --- From components/ResultCard.tsx ---
+        // --- From components/ResultCard.tsx (MODIFIED) ---
+        // Modified to accept dynamic fees
         const ResultCard = ({ results }) => {
           const [isTaxesExpanded, setIsTaxesExpanded] = useState(false);
           const [isFeesExpanded, setIsFeesExpanded] = useState(false);
 
           const formatCurrency = (value, currency = 'KRW') => {
-            // Ensure value is a number, default to 0 if not
             const numericValue = typeof value === 'number' && !isNaN(value) ? value : 0;
             return new Intl.NumberFormat('ko-KR', {
               style: 'currency',
@@ -187,27 +452,23 @@
           };
 
           const formatNumber = (value, unit = '', digits = 2) => {
-              // Ensure value is a number, default to 0 if not
               const numericValue = typeof value === 'number' && !isNaN(value) ? value : 0;
               return `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: digits }).format(numericValue)} ${unit}`;
           }
 
           const AnimatedNumber = ({ value, formatter }) => {
-              // Ensure value passed to formatter is valid
               const numericValue = typeof value === 'number' && !isNaN(value) ? value : 0;
               return <>{formatter(numericValue)}</>;
           };
 
           const ResultItem = ({ label, value, icon, isSub }) => (
             <div className={`flex items-center justify-between py-3 ${isSub ? 'pl-10' : ''}`}>
-              <div className="flex items-center min-w-0"> {/* Added min-w-0 for flex shrink */}
+              <div className="flex items-center min-w-0">
                 <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${isSub ? 'bg-slate-100' : 'bg-emerald-100'}`}>
                   {icon}
                 </div>
-                {/* Added truncate for long labels if needed */}
                 <span className={`ml-4 font-medium truncate ${isSub ? 'text-sm text-gray-600' : 'text-gray-800'}`}>{label}</span>
               </div>
-              {/* Added text-right and whitespace-nowrap */}
               <span className={`font-semibold text-right whitespace-nowrap ${isSub ? 'text-sm text-gray-700' : 'text-gray-900'}`}>{value}</span>
             </div>
           );
@@ -219,11 +480,10 @@
               Fee: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
               Tariff: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7.014A8.003 8.003 0 0117.657 18.657z" /></svg>,
               Vat: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
-              DocsFee: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
-              CoFee: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 4h3m-3 4h3" /></svg>,
+              DynamicFee: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
               ChevronDown: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>,
               PriceTag: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A2 2 0 013 8V3z" /></svg>,
-              Receipt: <ReceiptIcon />, // Use the ReceiptIcon component
+              Receipt: <ReceiptIcon />,
           };
           
           return (
@@ -247,7 +507,6 @@
                       icon={Icons.Shipping}
                   />
                   
-                  {/* --- NEW ITEM: Commission --- */}
                   {results.commissionAmountKRW > 0 && (
                       <ResultItem 
                           label="수수료" 
@@ -255,7 +514,6 @@
                           icon={Icons.Receipt} 
                       />
                   )}
-                  {/* --- END NEW --- */}
                   
                   {results.costPerItem > 0 && (
                       <ResultItem 
@@ -304,7 +562,7 @@
                       </div>
                   </div>
                   
-                  {/* Fee Group */}
+                  {/* Fee Group (MODIFIED) */}
                   <div>
                       <div 
                           onClick={() => setIsFeesExpanded(!isFeesExpanded)}
@@ -316,11 +574,11 @@
                               <div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-emerald-100">
                                   {Icons.Fee}
                               </div>
-                              <span className="ml-4 font-medium text-gray-800">기타 고정 수수료</span> {/* Label slightly changed */}
+                              <span className="ml-4 font-medium text-gray-800">기타 고정 수수료</span>
                           </div>
                           <div className="flex items-center">
                               <span className="font-semibold text-gray-900">
-                                  <AnimatedNumber value={results.docsFee + results.coFee} formatter={formatCurrency} />
+                                  <AnimatedNumber value={results.totalFixedFees} formatter={formatCurrency} />
                               </span>
                               <span className={`ml-2 transform transition-transform duration-200 md:hidden ${isFeesExpanded ? 'rotate-180' : ''}`}>
                                   {Icons.ChevronDown}
@@ -328,18 +586,16 @@
                           </div>
                       </div>
                       <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isFeesExpanded ? 'max-h-40' : 'max-h-0'} md:max-h-40`}>
-                          <ResultItem 
-                              label="서류비" 
-                              value={<AnimatedNumber value={results.docsFee} formatter={formatCurrency} />} 
-                              icon={Icons.DocsFee}
-                              isSub={true}
-                          />
-                          <ResultItem 
-                              label="CO발급비" 
-                              value={<AnimatedNumber value={results.coFee} formatter={formatCurrency} />} 
-                              icon={Icons.CoFee}
-                              isSub={true}
-                          />
+                          {/* Dynamically render fixed fees from results */}
+                          {results.fixedFees.map(fee => (
+                              <ResultItem 
+                                  key={fee.id}
+                                  label={fee.label}
+                                  value={<AnimatedNumber value={fee.value} formatter={formatCurrency} />} 
+                                  icon={<Icons.DynamicFee />}
+                                  isSub={true}
+                              />
+                          ))}
                       </div>
                   </div>
                 </div>
@@ -403,7 +659,8 @@
             );
         };
 
-        // --- Gemini Feature: Analysis Modal Component ---
+        // --- Gemini Feature: Analysis Modal Component (MODIFIED) ---
+        // Updated to handle dynamic fees
         const AnalysisModal = ({ show, onClose, results, calculatorType }) => {
             if (!show) return null;
 
@@ -423,12 +680,11 @@
                 chartData = [
                     { label: '총 상품가', value: results.totalProductPriceKRW, color: '#34d399' },
                     { label: '해운비', value: results.oceanFreightKRW, color: '#60a5fa' },
-                    { label: '수수료', value: results.commissionAmountKRW, color: '#c084fc' }, // Added commission
+                    { label: '수수료', value: results.commissionAmountKRW, color: '#c084fc' },
                     { label: '관세', value: results.tariffAmount, color: '#fbbf24' },
                     { label: '부가가치세', value: results.vatAmount, color: '#f87171' },
-                    { label: '기타 고정 수수료', value: results.docsFee + results.coFee, color: '#a78bfa' },
+                    { label: '기타 고정 수수료', value: results.totalFixedFees, color: '#a78bfa' },
                 ];
-                // Filter out items with zero value
                 chartData = chartData.filter(item => item.value > 0);
             }
 
@@ -493,7 +749,6 @@
                             <ul className="space-y-1 text-sm">
                                 <li className="flex justify-between"><span>총 상품가:</span><span className="font-mono">{formatCurrency(scenario.data.results.totalProductPriceKRW)}</span></li>
                                 <li className="flex justify-between"><span>해운비:</span><span className="font-mono">{formatCurrency(scenario.data.results.oceanFreightKRW)}</span></li>
-                                {/* Added Commission to comparison if available */}
                                 {scenario.data.results.commissionAmountKRW > 0 && (
                                   <li className="flex justify-between"><span>수수료:</span><span className="font-mono">{formatCurrency(scenario.data.results.commissionAmountKRW)}</span></li>
                                 )}
@@ -561,8 +816,10 @@
             )
         }
         
-        // --- From components/CustomsCalculator.tsx ---
+        // --- From components/CustomsCalculator.tsx (HEAVILY MODIFIED) ---
+        // Now reads all calculation constants from SettingsContext
         const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
+              const { settings } = useSettings(); // Use settings from context
               const formRef = useRef(null);
               const [isAnalysisOpen, setAnalysisOpen] = useState(false);
               const [saveButtonText, setSaveButtonText] = useState('비교용으로 저장');
@@ -572,6 +829,17 @@
               const [liveRates, setLiveRates] = useState({ krw: null, cny: null });
               const [rateStatus, setRateStatus] = useState('loading');
               
+              // Get options from settings
+              const { fixedFees, rates, tariffRates } = settings.customs;
+              
+              // Find specific rates from settings, with fallback to defaults
+              const oceanFreightRatePerCBM = parseFloat(rates.find(r => r.id === 'customs-r-1')?.value) || DEFAULT_SETTINGS.customs.rates[0].value;
+              const cbmWeightDivisor = parseFloat(rates.find(r => r.id === 'customs-r-2')?.value) || DEFAULT_SETTINGS.customs.rates[1].value;
+              const vatRate = (parseFloat(rates.find(r => r.id === 'customs-r-3')?.value) || DEFAULT_SETTINGS.customs.rates[2].value) / 100;
+              
+              // Calculate total fixed fees from settings
+              const totalFixedFees = fixedFees.reduce((acc, fee) => acc + (parseFloat(fee.value) || 0), 0);
+
               const [formData, setFormData] = useState({
                 productQuantity: '1000',
                 unitPrice: '10',
@@ -579,12 +847,11 @@
                 boxQuantity: '',
                 totalProductPrice: '',
                 weightPerBox: '12',
-                tariffRate: '8',
+                tariffRate: tariffRates[1]?.value || '8', // Default to second option or '8'
                 shippingType: 'LCL',
                 containerCost: '',
-                // --- NEW FORM STATES ---
-                commissionType: 'percentage', // 'percentage' or 'perItem'
-                commissionValue: '0', // Stored as string like other inputs
+                commissionType: 'percentage',
+                commissionValue: '0',
               });
 
               useEffect(() => {
@@ -622,13 +889,10 @@
                     e.preventDefault();
                     const form = formRef.current;
                     if (!form) return;
-                
                     const focusable = Array.from(
                       form.querySelectorAll('input:not([type="radio"]), select')
                     );
-                    
                     const index = focusable.indexOf(e.target);
-                
                     if (index > -1 && index < focusable.length - 1) {
                       focusable[index + 1].focus();
                     } else if (index === focusable.length - 1) {
@@ -640,7 +904,7 @@
                 const results = useMemo(() => {
                   const exchangeRateValue = parseFloat(exchangeRate) || 1;
                   const tariffRateValue = parseFloat(formData.tariffRate) / 100;
-                  const { shippingType, containerCost, commissionType, commissionValue } = formData; // Added commission fields
+                  const { shippingType, containerCost, commissionType, commissionValue } = formData;
                   const weightPerBox = parseFloat(formData.weightPerBox) || 0;
                   
                   let totalBoxes;
@@ -648,7 +912,7 @@
                   let totalWeight;
                   let productQuantity = 0;
                   let costPerItem = 0;
-                  let commissionAmountKRW = 0; // --- NEW ---
+                  let commissionAmountKRW = 0;
 
                   if (exchangeRateValue === 0) return null;
 
@@ -656,59 +920,48 @@
                       productQuantity = parseFloat(formData.productQuantity) || 0;
                       const unitPrice = parseFloat(formData.unitPrice) || 0;
                       const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
-                      
                       if (productQuantity === 0 || unitPrice === 0 || quantityPerBox === 0) return null;
-
                       totalBoxes = Math.ceil(productQuantity / quantityPerBox);
                       totalProductPriceUSD = productQuantity * unitPrice;
                   } else { // box mode
                       totalBoxes = parseFloat(formData.boxQuantity) || 0;
                       totalProductPriceUSD = parseFloat(formData.totalProductPrice) || 0;
-
                       if (totalBoxes === 0 || totalProductPriceUSD === 0) return null;
-                      // Note: Per-item commission cannot be calculated in box mode
-                      if (commissionType === 'perItem') {
-                          // Optionally, show a warning or disable per-item in box mode
-                          // For now, commission will be 0 in this case
-                      }
                   }
 
                   totalWeight = totalBoxes * weightPerBox;
-                  const cbm = totalWeight / CBM_WEIGHT_DIVISOR;
+                  const cbm = totalWeight / cbmWeightDivisor; // Use rate from settings
                   
                   let oceanFreightKRW;
                   if (shippingType === 'FCL') {
                       oceanFreightKRW = parseFloat(containerCost) || 0;
                   } else { // LCL
-                      oceanFreightKRW = cbm * OCEAN_FREIGHT_RATE_PER_CBM;
+                      oceanFreightKRW = cbm * oceanFreightRatePerCBM; // Use rate from settings
                   }
 
                   const oceanFreightUSD = oceanFreightKRW / exchangeRateValue;
                   const taxableBaseUSD = totalProductPriceUSD + oceanFreightUSD;
                   const tariffAmountUSD = taxableBaseUSD * tariffRateValue;
                   const vatBaseUSD = taxableBaseUSD + tariffAmountUSD;
-                  const vatAmountUSD = vatBaseUSD * VAT_RATE;
+                  const vatAmountUSD = vatBaseUSD * vatRate; // Use rate from settings
                 
                   const totalProductPriceKRW = totalProductPriceUSD * exchangeRateValue;
                   const tariffAmount = tariffAmountUSD * exchangeRateValue;
                   const vatAmount = vatAmountUSD * exchangeRateValue;
                   const totalTaxes = tariffAmount + vatAmount;
                 
-                  // --- Calculate Commission ---
                   const commissionValueNum = parseFloat(commissionValue) || 0;
                   if (commissionType === 'percentage') {
                       commissionAmountKRW = totalProductPriceKRW * (commissionValueNum / 100);
                   } else if (commissionType === 'perItem' && calculationMode === 'product' && productQuantity > 0) {
                       commissionAmountKRW = commissionValueNum * productQuantity;
                   }
-                  // --- End Commission Calc ---
                   
                   const taxableBase = totalProductPriceKRW + oceanFreightKRW;
-                  // --- Add commission to total cost ---
-                  const totalCost = DOCS_FEE + CO_FEE + oceanFreightKRW + totalTaxes + commissionAmountKRW; 
+                  // Use totalFixedFees from settings
+                  const totalCost = totalFixedFees + oceanFreightKRW + totalTaxes + commissionAmountKRW; 
                   
                   if (calculationMode === 'product' && productQuantity > 0) {
-                      // --- Include commission in per-item cost ---
                       costPerItem = (totalProductPriceKRW + totalCost) / productQuantity; 
                   }
                 
@@ -723,17 +976,16 @@
                     tariffAmount,
                     vatAmount,
                     totalTaxes,
-                    docsFee: DOCS_FEE,
-                    coFee: CO_FEE,
-                    commissionAmountKRW, // --- NEW ---
+                    fixedFees, // Pass dynamic fees to ResultCard
+                    totalFixedFees, // Pass total to ResultCard
+                    commissionAmountKRW,
                     totalCost,
                     costPerItem,
                   };
-                }, [formData, calculationMode, exchangeRate]); // Added commission fields to dependency array
+                }, [formData, calculationMode, exchangeRate, fixedFees, rates, totalFixedFees, cbmWeightDivisor, oceanFreightRatePerCBM, vatRate]); // Added settings dependencies
               
               const handleSave = () => {
                   if (isSaving) return;
-                  // Pass results including commission to save function
                   onSaveCompare('customs', { results, shippingType: formData.shippingType }); 
                   setSaveButtonText('✅ 저장됨!');
                   setIsSaving(true);
@@ -763,8 +1015,8 @@
               ];
               const calculationModeOptions = [{ label: '상품기준', value: 'product' }, { label: '박스기준', value: 'box' }];
               const shippingOptions = [{ label: 'LCL', value: 'LCL' }, { label: 'FCL', value: 'FCL' }];
-              const tariffOptions = [{ label: '0%', value: '0' }, { label: '8%', value: '8' }];
-              // --- NEW: Commission Options ---
+              // Get tariff options from settings
+              const tariffOptions = tariffRates.map(rate => ({ label: rate.label, value: rate.value }));
               const commissionTypeOptions = [{ label: '퍼센트(%)', value: 'percentage' }, { label: '개당(원)', value: 'perItem' }];
 
               return (
@@ -799,7 +1051,6 @@
 
                       <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">상세 정보 입력</h2>
                       
-                      {/* --- Input Fields --- */}
                       <div className="space-y-6">
                         {/* Product/Box Details */}
                         {(calculationMode === 'product' ? productModeFields : boxModeFields).map(field => (
@@ -815,7 +1066,7 @@
                             <p className="text-xs text-gray-500 mt-1 px-1">정확한 계산을 위해 <a href="https://unipass.customs.go.kr/csp/index.do?tgMenuId=MYC_EXIM_005" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline font-medium">관세청 고시환율</a>을 직접 입력해주세요.</p>
                         </div>
                         
-                        {/* --- NEW: Commission Section --- */}
+                        {/* Commission Section */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">수수료</label>
                           <div className="grid grid-cols-2 gap-x-2">
@@ -826,7 +1077,6 @@
                                           formData.commissionType === option.value ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'
                                       } transition-all duration-300 ease-in-out`}>
                                           <input type="radio" name="commissionType" value={option.value} checked={formData.commissionType === option.value} onChange={handleInputChange} className="sr-only" aria-labelledby={`commission-label-${option.value}`} 
-                                            // Disable 'perItem' if in 'box' calculation mode
                                             disabled={calculationMode === 'box' && option.value === 'perItem'} />
                                           <span id={`commission-label-${option.value}`} className={calculationMode === 'box' && option.value === 'perItem' ? 'opacity-50 cursor-not-allowed' : ''}>{option.label}</span>
                                       </label>
@@ -834,7 +1084,7 @@
                               </fieldset>
                               {/* Commission Value Input */}
                               <InputControl 
-                                label="" // No label needed here as it's part of the section
+                                label=""
                                 name="commissionValue" 
                                 value={formData.commissionValue} 
                                 onChange={handleInputChange} 
@@ -842,27 +1092,26 @@
                                 icon={formData.commissionType === 'percentage' ? <PercentageIcon /> : <CurrencyWonIcon />} 
                                 onKeyDown={handleKeyDown} 
                                 placeholder="0"
-                                // Disable if 'perItem' is selected in 'box' mode
                                 disabled={calculationMode === 'box' && formData.commissionType === 'perItem'}
                               />
                           </div>
-                           {/* Warning for 'perItem' in 'box' mode */}
                            {calculationMode === 'box' && formData.commissionType === 'perItem' && (
                                <p className="text-xs text-red-600 mt-1 px-1">박스 기준 계산 시 개당 수수료는 적용되지 않습니다.</p>
                            )}
                         </div>
-                        {/* --- END NEW --- */}
                         
-                        {/* Tariff */}
+                        {/* Tariff (Dynamic) */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">관세</label>
-                          <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60">
-                            {tariffOptions.map((option) => (
-                              <label key={option.value} className={`relative flex-1 cursor-pointer py-2.5 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${formData.tariffRate === option.value ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
+                          <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 flex-wrap">
+                            {tariffOptions.length > 0 ? tariffOptions.map((option) => (
+                              <label key={option.value} className={`relative flex-1 min-w-[50px] cursor-pointer py-2.5 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${formData.tariffRate === option.value ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out m-0.5`}>
                                 <input type="radio" name="tariffRate" value={option.value} checked={formData.tariffRate === option.value} onChange={handleInputChange} className="sr-only" aria-labelledby={`tariff-label-${option.value}`} />
                                 <span id={`tariff-label-${option.value}`}>{option.label}</span>
                               </label>
-                            ))}
+                            )) : (
+                                <p className="text-sm text-gray-500 p-2">설정에서 관세 옵션을 추가해주세요.</p>
+                            )}
                           </fieldset>
                         </div>
 
@@ -885,6 +1134,7 @@
                     {/* Results Area */}
                     {results ? (
                       <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
+                            {/* Pass dynamic results to ResultCard */}
                             <ResultCard results={results} />
                             <div className="mt-6 pt-6 border-t border-dashed">
                                 <h3 className="text-sm font-bold text-center text-emerald-700 mb-3">✨ Gemini 기능</h3>
@@ -905,8 +1155,10 @@
               );
         };
 
-        // --- From components/ImportCalculator.tsx ---
+        // --- From components/ImportCalculator.tsx (HEAVILY MODIFIED) ---
+        // Now reads all options and rates from SettingsContext
         const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
+            const { settings } = useSettings(); // Use settings from context
             const formRef = useRef(null);
             const [isAnalysisOpen, setAnalysisOpen] = useState(false);
             const [saveButtonText, setSaveButtonText] = useState('비교용으로 저장');
@@ -916,12 +1168,16 @@
             const [liveRates, setLiveRates] = useState({ krw: null, cny: null });
             const [rateStatus, setRateStatus] = useState('loading');
 
+            // Get options from settings
+            const { commissionRates, customsFeeRates, packagingBags, labels } = settings.import;
+
+            // Set initial form state based on settings
             const [formData, setFormData] = useState({
                 productCost: '10',
-                commissionRate: String(COMMISSION_RATE_HIGH),
-                customsFeeRate: String(CUSTOMS_FEE_RATE_LOW),
-                packagingBag: String(PACKAGING_BAG_DEFAULT),
-                label: String(LABEL_DEFAULT),
+                commissionRate: commissionRates[0]?.value.toString() || '0',
+                customsFeeRate: customsFeeRates[0]?.value.toString() || '0',
+                packagingBag: packagingBags[0]?.value.toString() || '0',
+                label: labels[0]?.value.toString() || '0',
             });
 
             useEffect(() => {
@@ -1002,30 +1258,38 @@
 
             const CurrencyYenIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 4h4m-5 4h5M5 8h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg>);
 
-            const formatKRW = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0); // Added fallback
-            const formatUSD = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0); // Added fallback
-            const formatCNY = (value) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)} ¥`; // Added fallback
+            const formatKRW = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0);
+            const formatUSD = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
+            const formatCNY = (value) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)} ¥`;
             const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
 
             const ToggleFieldset = ({ label, name, value, options, onChange }) => (
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-                    <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60">
-                        {options.map((option) => (
-                            <label key={option.value} className={`relative flex-1 cursor-pointer py-2.5 px-3 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${ value === option.value ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                                <input type="radio" name={name} value={option.value} checked={value === option.value} onChange={onChange} className="sr-only" aria-labelledby={`${name}-label-${option.value}`} />
-                                <span id={`${name}-label-${option.value}`}>{option.label}</span>
+                    <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 flex-wrap">
+                        {options.length > 0 ? options.map((option) => (
+                            <label key={option.id} className={`relative flex-1 min-w-[70px] cursor-pointer py-2.5 px-3 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${ 
+                                // Compare stringified values
+                                String(value) === String(option.value) 
+                                ? 'bg-white text-emerald-600 shadow-md rounded-md' 
+                                : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out m-0.5`
+                            }>
+                                <input type="radio" name={name} value={option.value} checked={String(value) === String(option.value)} onChange={onChange} className="sr-only" aria-labelledby={`${name}-label-${option.id}`} />
+                                <span id={`${name}-label-${option.id}`}>{option.label}</span>
                             </label>
-                        ))}
+                        )) : (
+                             <p className="text-sm text-gray-500 p-2">설정에서 {label} 옵션을 추가해주세요.</p>
+                        )}
                     </fieldset>
                 </div>
             );
 
+            // Create options for ToggleFieldset from settings
             const options = {
-                commissionRate: [{ label: '3.5%', value: String(COMMISSION_RATE_HIGH) }, { label: '0%', value: String(COMMISSION_RATE_LOW) }],
-                customsFeeRate: [{ label: '22%', value: String(CUSTOMS_FEE_RATE_LOW) }, { label: '29%', value: String(CUSTOMS_FEE_RATE_HIGH) }],
-                packagingBag: [{ label: '4호-기본', value: String(PACKAGING_BAG_DEFAULT) }, { label: '아우터', value: String(PACKAGING_BAG_OUTER) }, { label: '없음', value: String(PACKAGING_BAG_NONE) }],
-                label: [{ label: '일반라벨', value: String(LABEL_DEFAULT) }, { label: '없음', value: String(LABEL_NONE) }],
+                commissionRate: commissionRates.map(o => ({ ...o, value: o.value.toString() })),
+                customsFeeRate: customsFeeRates.map(o => ({ ...o, value: o.value.toString() })),
+                packagingBag: packagingBags.map(o => ({ ...o, value: o.value.toString() })),
+                label: labels.map(o => ({ ...o, value: o.value.toString() })),
             };
 
             return (
@@ -1087,14 +1351,23 @@
             );
         };
         
-        // --- From components/ShippingCalculator.tsx ---
+        // --- From components/ShippingCalculator.tsx (HEAVILY MODIFIED) ---
+        // Now reads container and pallet dimensions from SettingsContext
         const ShippingCalculator = () => {
+            const { settings } = useSettings(); // Use settings from context
             const formRef = useRef(null);
+            
+            // Get dimensions from settings
+            const { containers, pallets } = settings.shipping;
+            // Create maps for easy lookup
+            const CONTAINER_DIMENSIONS = Object.fromEntries(containers.map(c => [c.name, c]));
+            const PALLET_TYPES = Object.fromEntries(pallets.map(p => [p.value, p]));
+
             const [formData, setFormData] = useState({
                 boxLength: '500',
                 boxWidth: '400',
                 boxHeight: '300',
-                palletType: 'none',
+                palletType: pallets[0]?.value || 'none', // Default to first pallet
             });
 
             const handleInputChange = useCallback((e) => {
@@ -1118,7 +1391,7 @@
             }, []);
             
             const calculateMaxBoxes = (container, box) => {
-                if (box.length <= 0 || box.width <= 0 || box.height <= 0) return 0;
+                if (!container || box.length <= 0 || box.width <= 0 || box.height <= 0) return 0;
                 const { length: cL, width: cW, height: cH } = container;
                 const { length: bL, width: bW, height: bH } = box;
                 const orientations = [[bL, bW, bH], [bL, bH, bW], [bW, bL, bH], [bW, bH, bL], [bH, bL, bW], [bH, bW, bL]];
@@ -1131,21 +1404,37 @@
                 return maxBoxes;
             }
 
-            const calculateOptimalPalletLoad = (pallet, box) => {
-                if (box.length <= 0 || box.width <= 0 || box.height <= 0 || pallet.loadHeight <= 0) return { boxesPerPallet: 0, boxStackHeight: 0 };
-                const { length: pL, width: pW, loadHeight: pLH } = pallet;
+            const calculateOptimalPalletLoad = (pallet, box, containerHeight) => {
+                if (!pallet || box.length <= 0 || box.width <= 0 || box.height <= 0) return { boxesPerPallet: 0, boxStackHeight: 0 };
+                
+                const palletLoadHeight = containerHeight - pallet.height;
+                if (palletLoadHeight <= 0) return { boxesPerPallet: 0, boxStackHeight: 0 };
+                
+                const { length: pL, width: pW } = pallet;
                 const { length: bL, width: bW, height: bH } = box;
-                const boxOrientations = [{ l: bL, w: bW, h: bH }, { l: bL, w: bH, h: bW }, { l: bW, w: bH, h: bL }];
+                
+                // All 3 box orientations (L, W, H as base)
+                const boxOrientations = [
+                    { l: bL, w: bW, h: bH }, // H is height
+                    { l: bL, w: bH, h: bW }, // W is height
+                    { l: bW, w: bH, h: bL }  // L is height
+                ];
+                
                 let maxBoxes = 0;
                 let optimalStackHeight = 0;
+                
                 for (const { l, w, h } of boxOrientations) {
-                    if (h > pLH) continue;
-                    const layers = Math.floor(pLH / h);
+                    if (h > palletLoadHeight) continue; // Box height > available space
+                    const layers = Math.floor(palletLoadHeight / h);
                     if (layers === 0) continue;
+                    
+                    // Check both rotations on pallet
                     const boxesPerLayer1 = Math.floor(pL / l) * Math.floor(pW / w);
                     const boxesPerLayer2 = Math.floor(pL / w) * Math.floor(pW / l);
+                    
                     const boxesPerLayer = Math.max(boxesPerLayer1, boxesPerLayer2);
                     const totalBoxes = layers * boxesPerLayer;
+                    
                     if (totalBoxes > maxBoxes) {
                         maxBoxes = totalBoxes;
                         optimalStackHeight = layers * h;
@@ -1160,39 +1449,63 @@
                 const boxHeight = parseFloat(formData.boxHeight) || 0;
                 const { palletType } = formData;
                 if (boxLength <= 0 || boxWidth <= 0 || boxHeight <= 0) return null;
+                
                 const boxDims = { length: boxLength, width: boxWidth, height: boxHeight };
-                const looseBoxesIn20ft = calculateMaxBoxes(CONTAINER_DIMENSIONS.FT20, boxDims);
-                const looseBoxesIn40ft = calculateMaxBoxes(CONTAINER_DIMENSIONS.FT40, boxDims);
-                if (palletType === 'none') return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft };
+                const container20ft = containers.find(c => c.name === '20ft');
+                const container40ft = containers.find(c => c.name === '40ft');
+
+                const looseBoxesIn20ft = calculateMaxBoxes(container20ft, boxDims);
+                const looseBoxesIn40ft = calculateMaxBoxes(container40ft, boxDims);
+                
+                if (palletType === 'none' || !PALLET_TYPES[palletType]) {
+                    return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft };
+                }
+                
                 const selectedPallet = PALLET_TYPES[palletType];
-                if (!selectedPallet) return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft };
-                const containerHeight = CONTAINER_DIMENSIONS.FT20.height;
-                const palletLoadHeight = containerHeight - selectedPallet.height;
-                if (palletLoadHeight <= 0) return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft, boxesPerPallet: 0, palletsIn20ft: 0, palletsIn40ft: 0 };
-                const { boxesPerPallet, boxStackHeight } = calculateOptimalPalletLoad({ length: selectedPallet.length, width: selectedPallet.width, loadHeight: palletLoadHeight }, boxDims);
-                if (boxesPerPallet === 0) return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft, boxesPerPallet: 0, palletsIn20ft: 0, palletsIn40ft: 0 };
+                if (!selectedPallet || !container20ft) {
+                     return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft };
+                }
+                
+                const containerHeight = container20ft.height; // Assume 20ft/40ft have same height
+                
+                const { boxesPerPallet, boxStackHeight } = calculateOptimalPalletLoad(selectedPallet, boxDims, containerHeight);
+                
+                if (boxesPerPallet === 0) {
+                    return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft, boxesPerPallet: 0, palletsIn20ft: 0, palletsIn40ft: 0 };
+                }
+                
                 const totalLoadedPalletHeight = selectedPallet.height + boxStackHeight;
                 const loadedPalletDims = { length: selectedPallet.length, width: selectedPallet.width, height: totalLoadedPalletHeight };
+                
                 const calculatePalletsInContainer = (container, pallet) => {
-                    if (pallet.height > container.height) return 0;
+                    if (!container || !pallet || pallet.height > container.height) return 0;
                     const count1 = Math.floor(container.length / pallet.length) * Math.floor(container.width / pallet.width);
                     const count2 = Math.floor(container.length / pallet.width) * Math.floor(container.width / pallet.length);
                     return Math.max(count1, count2);
                 };
-                const palletsIn20ft = calculatePalletsInContainer(CONTAINER_DIMENSIONS.FT20, loadedPalletDims);
-                const palletsIn40ft = calculatePalletsInContainer(CONTAINER_DIMENSIONS.FT40, loadedPalletDims);
-                return { boxesIn20ft: palletsIn20ft * boxesPerPallet, boxesIn40ft: palletsIn40ft * boxesPerPallet, boxesPerPallet, palletsIn20ft, palletsIn40ft };
-            }, [formData]);
+                
+                const palletsIn20ft = calculatePalletsInContainer(container20ft, loadedPalletDims);
+                const palletsIn40ft = calculatePalletsInContainer(container40ft, loadedPalletDims);
+                
+                return { 
+                    boxesIn20ft: palletsIn20ft * boxesPerPallet, 
+                    boxesIn40ft: palletsIn40ft * boxesPerPallet, 
+                    boxesPerPallet, 
+                    palletsIn20ft, 
+                    palletsIn40ft 
+                };
+            }, [formData, containers, pallets, PALLET_TYPES]); // Add settings to dependency array
 
             const DimensionIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 10l-6 6" /><path strokeLinecap="round" strokeLinejoin="round" d="M3 8v11h11" /></svg>);
             const PalletIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H3a1 1 0 01-1-1V5zM3 9h14v2H3V9zM3 13h14v2H3v-2z" /></svg>);
             const ContainerIcon = ({ size }) => (<svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><rect x="3" y="6" width="18" height="12" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="3" y1="14" x2="21" y2="14" /><text x="50%" y="52%" dominantBaseline="middle" textAnchor="middle" fontSize="6" fill="currentColor" fontWeight="bold">{size}ft</text></svg>);
 
-            const formatNumber = (value) => new Intl.NumberFormat('ko-KR').format(Math.round(value || 0)); // Added fallback
+            const formatNumber = (value) => new Intl.NumberFormat('ko-KR').format(Math.round(value || 0));
             const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
 
             const inputFields = [{ label: "박스 길이", name: "boxLength", unit: "mm" }, { label: "박스 너비", name: "boxWidth", unit: "mm" }, { label: "박스 높이", name: "boxHeight", unit: "mm" }];
-            const palletOptions = Object.keys(PALLET_TYPES).map(key => ({ label: PALLET_TYPES[key].name, value: key }));
+            // Get pallet options from settings
+            const palletOptions = pallets.map(p => ({ label: p.name, value: p.value }));
 
             return (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
@@ -1205,7 +1518,9 @@
                                 <div className="relative">
                                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><PalletIcon /></div>
                                     <select id="palletType" name="palletType" value={formData.palletType} onChange={handleInputChange} onKeyDown={handleKeyDown} className="w-full appearance-none rounded-md border-gray-300 py-2 pl-10 pr-10 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm">
-                                        {palletOptions.map(option => (<option key={option.value} value={option.value}>{option.label}</option>))}
+                                        {palletOptions.length > 0 ? palletOptions.map(option => (<option key={option.value} value={option.value}>{option.label}</option>))
+                                          : <option value="">설정에서 파레트를 추가해주세요</option>
+                                        }
                                     </select>
                                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
                                 </div>
@@ -1252,12 +1567,14 @@
             );
         };
 
-        // --- From App.tsx ---
+        // --- From App.tsx (HEAVILY MODIFIED) ---
+        // Wraps app in SettingsProvider, adds Settings button and modal
         const App = () => {
             const [activeTabId, setActiveTabId] = useState('import');
              const [exchangeRate, setExchangeRate] = useState(() => localStorage.getItem('exchangeRate') || '1350');
             const [comparisonScenarios, setComparisonScenarios] = useState([]);
             const [isComparisonOpen, setComparisonOpen] = useState(false);
+            const [isSettingsOpen, setIsSettingsOpen] = useState(false); // New state for settings
 
             useEffect(() => { localStorage.setItem('exchangeRate', exchangeRate); }, [exchangeRate]);
             useEffect(() => { try { const saved = localStorage.getItem('comparisonScenarios'); if(saved) setComparisonScenarios(JSON.parse(saved)); } catch (e) { console.error("Failed to parse scenarios", e) } }, []);
@@ -1281,12 +1598,12 @@
                 { id: 'import', title: '수입가', component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
                 { id: 'customs', title: '통관비', component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
                 { id: 'shipping', title: '선적', component: <ShippingCalculator /> },
-            ], [exchangeRate, comparisonScenarios]);
+            ], [exchangeRate, comparisonScenarios]); // comparisonScenarios dependency might not be needed here if state is managed within component
 
             // --- Swipe Logic ---
             const touchStartX = useRef(null); const touchDeltaX = useRef(0); const [isSwiping, setIsSwiping] = useState(false);
             const activeTabIndex = useMemo(() => tabs.findIndex(tab => tab.id === activeTabId), [tabs, activeTabId]);
-            const handleTouchStart = (e) => { if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName) || e.target.closest('[role="button"]')) return; touchStartX.current = e.touches[0].clientX; touchDeltaX.current = 0; setIsSwiping(true); };
+            const handleTouchStart = (e) => { if (['INPUT', 'SELECT', 'BUTTON', 'A', 'TEXTAREA'].includes(e.target.tagName) || e.target.closest('[role="button"]')) return; touchStartX.current = e.touches[0].clientX; touchDeltaX.current = 0; setIsSwiping(true); };
             const handleTouchMove = (e) => { if (!isSwiping || touchStartX.current === null) return; touchDeltaX.current = e.touches[0].clientX - touchStartX.current; };
             const handleTouchEnd = () => { if (!isSwiping) return; const swipeThreshold = 50; if (Math.abs(touchDeltaX.current) > swipeThreshold) { if (touchDeltaX.current < 0) { if (activeTabIndex < tabs.length - 1) setActiveTabId(tabs[activeTabIndex + 1].id); } else { if (activeTabIndex > 0) setActiveTabId(tabs[activeTabIndex - 1].id); } } setIsSwiping(false); touchStartX.current = null; touchDeltaX.current = 0; };
             // --- End Swipe Logic ---
@@ -1300,11 +1617,23 @@
             return (
                 <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
                     <ComparisonModal show={isComparisonOpen} onClose={() => setComparisonOpen(false)} onClear={handleClearCompare} scenarios={comparisonScenarios} />
+                    {/* Add SettingsModal */}
+                    <SettingsModal show={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+                    
                     <div className="w-full max-w-6xl mx-auto flex flex-col h-full">
                         {/* Header */}
-                        <header className="text-center mb-10">
+                        <header className="relative text-center mb-10">
                             <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500 pb-2">비용 계산기</h1>
                             <p className="mt-2 text-lg text-slate-600">수입에 필요한 비용을 간편하게 계산해보세요.</p>
+                            
+                            {/* Settings Button */}
+                            <button 
+                                onClick={() => setIsSettingsOpen(true)}
+                                className="absolute top-0 right-0 p-2 text-slate-500 hover:text-emerald-600 bg-white/50 rounded-full shadow-sm hover:bg-white/90 transition-all"
+                                title="설정"
+                            >
+                                <SettingsIcon />
+                            </button>
                         </header>
 
                         {/* Compare Button */}
@@ -1328,12 +1657,18 @@
             );
         };
         
-        // --- From index.tsx ---
+        // --- From index.tsx (MODIFIED) ---
+        // Wraps App in SettingsProvider
         const rootElement = document.getElementById('root');
         if (!rootElement) throw new Error("Could not find root element to mount to");
         const root = ReactDOM.createRoot(rootElement);
-        root.render(<React.StrictMode><App /></React.StrictMode>);
+        root.render(
+            <React.StrictMode>
+                <SettingsProvider>
+                    <App />
+                </SettingsProvider>
+            </React.StrictMode>
+        );
 
     </script>
 </body>
-</html>
