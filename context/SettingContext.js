@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { DEFAULT_SETTINGS }S from '../constants.js'; // 상위 폴더의 constants.js
+// 1. 오타 수정: 'DEFAULT_SETTINGS}S' -> 'DEFAULT_SETTINGS'
+import { DEFAULT_SETTINGS } from '../constants.js'; 
 
 // 1. 설정 보관함(Context) 생성
 const SettingsContext = createContext(null);
