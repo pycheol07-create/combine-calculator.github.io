@@ -264,3 +264,35 @@ export const SettingsModal = ({ show, onClose }) => {
                             />
                         </div>
                     </div>
+                {/* --- 👆 여기가 원래 '}'가 있던 위치 --- */}
+                </div> {/* --- 👈 모달 본문 (스크롤) 닫기 --- */}
+
+                {/* --- 👇 [수정] 누락되었던 모달 푸터(버튼) 추가 --- */}
+                <div className="flex justify-between items-center p-5 bg-gray-50 border-t">
+                    <button
+                        onClick={handleReset}
+                        className="text-sm font-medium text-red-600 hover:text-red-700"
+                    >
+                        설정 초기화
+                    </button>
+                    <div>
+                        <button
+                            onClick={handleCancel}
+                            className="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 mr-2"
+                        >
+                            취소
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700"
+                        >
+                            저장
+                        </button>
+                    </div>
+                </div>
+                {/* --- 👆 [수정] 누락되었던 모달 푸터(버튼) 추가 --- */}
+                
+            </div> {/* --- 👈 모달 컨텐츠 닫기 --- */}
+        </div> {/* --- 👈 모달 배경 닫기 --- */}
+    );
+}; // --- 👈 [수정] '}'를 올바른 위치(컴포넌트의 끝)로 이동 ---
