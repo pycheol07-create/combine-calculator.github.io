@@ -1,7 +1,9 @@
+// (수정) 'react'와 'react-dom/client'를 importmap 대신 전체 URL로 변경합니다.
 import React from 'https://esm.sh/react@18.2.0';
 import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
+
 import { App } from './App.js';
-import { SettingsProvider } from './context/SettingsContext.js'; // 1. SettingsProvider import
+import { SettingsProvider } from './context/SettingsContext.js';
 
 // --- From index.tsx ---
 const rootElement = document.getElementById('root');
