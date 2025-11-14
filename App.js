@@ -3,22 +3,13 @@ import { ComparisonModal } from './components/ComparisonModal.js';
 import { ImportCalculator } from './components/ImportCalculator.js';
 import { CustomsCalculator } from './components/CustomsCalculator.js';
 import { ShippingCalculator } from './components/ShippingCalculator.js';
-import { SettingsModal } from './components/SettingsModal.js'; // 1. SettingsModal import
 
-// --- '설정' 아이콘 컴포넌트 ---
-const CogIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.096 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-);
-
+// --- From App.tsx ---
 export const App = () => {
     const [activeTabId, setActiveTabId] = useState('import');
-    const [exchangeRate, setExchangeRate] = useState(() => localStorage.getItem('exchangeRate') || '1350');
+     const [exchangeRate, setExchangeRate] = useState(() => localStorage.getItem('exchangeRate') || '1350');
     const [comparisonScenarios, setComparisonScenarios] = useState([]);
     const [isComparisonOpen, setComparisonOpen] = useState(false);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false); // 2. 설정 모달 상태 추가
 
     useEffect(() => { localStorage.setItem('exchangeRate', exchangeRate); }, [exchangeRate]);
     useEffect(() => { try { const saved = localStorage.getItem('comparisonScenarios'); if(saved) setComparisonScenarios(JSON.parse(saved)); } catch (e) { console.error("Failed to parse scenarios", e) } }, []);
@@ -42,7 +33,7 @@ export const App = () => {
         { id: 'import', title: '수입가', component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
         { id: 'customs', title: '통관비', component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
         { id: 'shipping', title: '선적', component: <ShippingCalculator /> },
-    ], [exchangeRate]); // comparisonScenarios는 tabs 렌더링과 직접 관련 없으므로 제거
+    ], [exchangeRate, comparisonScenarios]); // comparisonScenarios를 의존성 배열에 추가 (handleSaveCompare가 재생성되도록)
 
     // --- Swipe Logic ---
     const touchStartX = useRef(null); const touchDeltaX = useRef(0); const [isSwiping, setIsSwiping] = useState(false);
@@ -60,26 +51,12 @@ export const App = () => {
 
     return (
         <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
-            {/* 3. 모달 컴포넌트들 렌더링 */}
             <ComparisonModal show={isComparisonOpen} onClose={() => setComparisonOpen(false)} onClear={handleClearCompare} scenarios={comparisonScenarios} />
-            <SettingsModal show={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-            
             <div className="w-full max-w-6xl mx-auto flex flex-col h-full">
                 {/* Header */}
-                <header className="relative text-center mb-10">
+                <header className="text-center mb-10">
                     <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500 pb-2">비용 계산기</h1>
                     <p className="mt-2 text-lg text-slate-600">수입에 필요한 비용을 간편하게 계산해보세요.</p>
-                    
-                    {/* 4. 설정 버튼 추가 */}
-                    <div className="absolute top-0 right-0">
-                        <button
-                            onClick={() => setIsSettingsOpen(true)}
-                            className="p-2 text-gray-500 hover:text-emerald-600 transition-colors duration-200"
-                            title="설정"
-                        >
-                            <CogIcon />
-                        </button>
-                    </div>
                 </header>
 
                 {/* Compare Button */}

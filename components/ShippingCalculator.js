@@ -1,15 +1,10 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-// 1. [수정] DEFAULT_SETTINGS에서 값을 가져오도록 변경
-import { DEFAULT_SETTINGS } from '../constants.js'; 
+import { CONTAINER_DIMENSIONS, PALLET_TYPES } from '../constants.js'; // 경로 수정
 import { InputControl } from './InputControl.js';
-// 2. [수정] DimensionIcon을 상단 import에 추가
-import { PalletIcon, ContainerIcon, DimensionIcon } from './Icons.js'; 
+import { PalletIcon, ContainerIcon } from './Icons.js'; // DimensionIcon은 InputControl 내부에서 사용되므로 여기선 불필요 (필요하면 추가)
 
 // --- From components/ShippingCalculator.tsx ---
 export const ShippingCalculator = () => {
-    // 3. [수정] DEFAULT_SETTINGS에서 필요한 상수를 꺼내서 사용
-    const { CONTAINER_DIMENSIONS, PALLET_TYPES } = DEFAULT_SETTINGS;
-    
     const formRef = useRef(null);
     const [formData, setFormData] = useState({
         boxLength: '500',
@@ -103,10 +98,17 @@ export const ShippingCalculator = () => {
         const palletsIn20ft = calculatePalletsInContainer(CONTAINER_DIMENSIONS.FT20, loadedPalletDims);
         const palletsIn40ft = calculatePalletsInContainer(CONTAINER_DIMENSIONS.FT40, loadedPalletDims);
         return { boxesIn20ft: palletsIn20ft * boxesPerPallet, boxesIn40ft: palletsIn40ft * boxesPerPallet, boxesPerPallet, palletsIn20ft, palletsIn40ft };
-    }, [formData, CONTAINER_DIMENSIONS, PALLET_TYPES]); // 4. [수정] 의존성 배열에 추가
+    }, [formData]);
 
-    // 5. [수정] 아래 require(...) 구문 삭제
-    // const { DimensionIcon } = require('./Icons.js'); 
+    // Note: DimensionIcon은 InputControl에서 사용되도록 전달해야 합니다.
+    // InputControl 컴포넌트 정의상 icon prop을 받으므로, 
+    // inputFields 정의 시 DimensionIcon을 포함해야 합니다.
+    // Icons.js에 DimensionIcon이 export되어 있다고 가정합니다. (2단계에서 확인)
+    // 2단계에서 DimensionIcon을 추가하지 않았다면, Icons.js에 추가해야 합니다.
+    // -> 2단계에서 DimensionIcon이 포함되어 있음을 확인했습니다.
+
+    // `InputControl`에 아이콘을 전달하기 위해 Icons.js에서 import 합니다.
+    const { DimensionIcon } = require('./Icons.js'); // DimensionIcon을 import
 
     const formatNumber = (value) => new Intl.NumberFormat('ko-KR').format(Math.round(value || 0)); // Added fallback
     const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
