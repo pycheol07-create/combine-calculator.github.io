@@ -4,6 +4,9 @@
 // --- From components/ShippingCalculator.tsx ---
 const ShippingCalculator = () => {
     const formRef = React.useRef(null);
+    // [수정] SettingsContext 사용
+    const { settings } = React.useContext(SettingsContext);
+    
     const [formData, setFormData] = React.useState({
         boxLength: '500',
         boxWidth: '400',
@@ -69,44 +72,66 @@ const ShippingCalculator = () => {
     };
 
     const results = React.useMemo(() => {
+        // [수정] settings에서 컨테이너 및 파레트 정보 가져오기
+        const CONTAINER_DIMENSIONS = {
+            FT20: settings.shipping.container20,
+            FT40: settings.shipping.container40
+        };
+        const PALLET_TYPES = settings.shipping.palletTypes;
+
         const boxLength = parseFloat(formData.boxLength) || 0;
         const boxWidth = parseFloat(formData.boxWidth) || 0;
         const boxHeight = parseFloat(formData.boxHeight) || 0;
         const { palletType } = formData;
+
         if (boxLength <= 0 || boxWidth <= 0 || boxHeight <= 0) return null;
         const boxDims = { length: boxLength, width: boxWidth, height: boxHeight };
+        
         const looseBoxesIn20ft = calculateMaxBoxes(CONTAINER_DIMENSIONS.FT20, boxDims);
         const looseBoxesIn40ft = calculateMaxBoxes(CONTAINER_DIMENSIONS.FT40, boxDims);
+        
         if (palletType === 'none') return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft };
-        const selectedPallet = PALLET_TYPES[palletType];
+        
+        // [수정] PALLET_TYPES가 배열이므로 find로 검색
+        const selectedPallet = PALLET_TYPES.find(p => p.value === palletType);
         if (!selectedPallet) return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft };
+        
         const containerHeight = CONTAINER_DIMENSIONS.FT20.height;
         const palletLoadHeight = containerHeight - selectedPallet.height;
+        
         if (palletLoadHeight <= 0) return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft, boxesPerPallet: 0, palletsIn20ft: 0, palletsIn40ft: 0 };
+        
         const { boxesPerPallet, boxStackHeight } = calculateOptimalPalletLoad({ length: selectedPallet.length, width: selectedPallet.width, loadHeight: palletLoadHeight }, boxDims);
+        
         if (boxesPerPallet === 0) return { boxesIn20ft: looseBoxesIn20ft, boxesIn40ft: looseBoxesIn40ft, boxesPerPallet: 0, palletsIn20ft: 0, palletsIn40ft: 0 };
+        
         const totalLoadedPalletHeight = selectedPallet.height + boxStackHeight;
         const loadedPalletDims = { length: selectedPallet.length, width: selectedPallet.width, height: totalLoadedPalletHeight };
+        
         const calculatePalletsInContainer = (container, pallet) => {
             if (pallet.height > container.height) return 0;
             const count1 = Math.floor(container.length / pallet.length) * Math.floor(container.width / pallet.width);
             const count2 = Math.floor(container.length / pallet.width) * Math.floor(container.width / pallet.length);
             return Math.max(count1, count2);
         };
+        
         const palletsIn20ft = calculatePalletsInContainer(CONTAINER_DIMENSIONS.FT20, loadedPalletDims);
         const palletsIn40ft = calculatePalletsInContainer(CONTAINER_DIMENSIONS.FT40, loadedPalletDims);
+        
         return { boxesIn20ft: palletsIn20ft * boxesPerPallet, boxesIn40ft: palletsIn40ft * boxesPerPallet, boxesPerPallet, palletsIn20ft, palletsIn40ft };
-    }, [formData]);
+    }, [formData, settings]);
 
     const DimensionIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 10l-6 6" /><path strokeLinecap="round" strokeLinejoin="round" d="M3 8v11h11" /></svg>);
     const PalletIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H3a1 1 0 01-1-1V5zM3 9h14v2H3V9zM3 13h14v2H3v-2z" /></svg>);
     const ContainerIcon = ({ size }) => (<svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><rect x="3" y="6" width="18" height="12" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="3" y1="14" x2="21" y2="14" /><text x="50%" y="52%" dominantBaseline="middle" textAnchor="middle" fontSize="6" fill="currentColor" fontWeight="bold">{size}ft</text></svg>);
 
-    const formatNumber = (value) => new Intl.NumberFormat('ko-KR').format(Math.round(value || 0)); // Added fallback
+    const formatNumber = (value) => new Intl.NumberFormat('ko-KR').format(Math.round(value || 0)); 
     const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
 
     const inputFields = [{ label: "박스 길이", name: "boxLength", unit: "mm" }, { label: "박스 너비", name: "boxWidth", unit: "mm" }, { label: "박스 높이", name: "boxHeight", unit: "mm" }];
-    const palletOptions = Object.keys(PALLET_TYPES).map(key => ({ label: PALLET_TYPES[key].name, value: key }));
+    
+    // [수정] settings에서 파레트 목록 가져오기
+    const palletOptions = settings.shipping.palletTypes;
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
@@ -119,6 +144,7 @@ const ShippingCalculator = () => {
                         <div className="relative">
                             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><PalletIcon /></div>
                             <select id="palletType" name="palletType" value={formData.palletType} onChange={handleInputChange} onKeyDown={handleKeyDown} className="w-full appearance-none rounded-md border-gray-300 py-2 pl-10 pr-10 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm">
+                                {/* [수정] '없음' 옵션을 기본적으로 포함하거나 settings에 포함되어 있다고 가정 */}
                                 {palletOptions.map(option => (<option key={option.value} value={option.value}>{option.label}</option>))}
                             </select>
                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>

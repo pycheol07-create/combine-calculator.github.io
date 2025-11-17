@@ -1,30 +1,56 @@
-// --- From constants.ts ---
-// 'export' 키워드를 모두 삭제합니다.
-const DOCS_FEE = 88000;
-const CO_FEE = 43700;
-const OCEAN_FREIGHT_RATE_PER_CBM = 110000;
-const CBM_WEIGHT_DIVISOR = 250;
-const VAT_RATE = 0.1;
+// [수정됨] 개별 상수가 아닌, 구조화된 기본 설정 객체(DEFAULT_SETTINGS)를 정의합니다.
 
-const COMMISSION_RATE_HIGH = 0.035;
-const COMMISSION_RATE_LOW = 0;
-const CUSTOMS_FEE_RATE_HIGH = 0.29;
-const CUSTOMS_FEE_RATE_LOW = 0.22;
-
-const PACKAGING_BAG_DEFAULT = 0.31;
-const PACKAGING_BAG_OUTER = 0.46;
-const PACKAGING_BAG_NONE = 0;
-const LABEL_DEFAULT = 0.03;
-const LABEL_NONE = 0;
-
-const CONTAINER_DIMENSIONS = {
-  FT20: { length: 5898, width: 2352, height: 2393 },
-  FT40: { length: 12032, width: 2352, height: 2393 },
-};
-const PALLET_TYPES = {
-    'none': { name: '없음', length: 0, width: 0, height: 0 },
-    '1100x1100': { name: '1100x1100', length: 1100, width: 1100, height: 150 },
-    '1000x1200': { name: '1000x1200', length: 1000, width: 1200, height: 150 },
-    '800x1200': { name: '800x1200', length: 800, width: 1200, height: 150 },
-    '1140x1140': { name: '1140x1140', length: 1140, width: 1140, height: 150 },
+const DEFAULT_SETTINGS = {
+    common: {
+        docsFee: 88000,
+        coFee: 43700,
+        oceanFreightPerCbm: 110000,
+        cbmWeightDivisor: 250,
+        vatRate: 0.1,
+    },
+    import: {
+        commissionRates: [
+            { label: '3.5%', value: 0.035 },
+            { label: '0%', value: 0 }
+        ],
+        customsFeeRates: [
+            { label: '22%', value: 0.22 },
+            { label: '29%', value: 0.29 }
+        ],
+        packagingOptions: [
+            { label: '4호-기본', value: 0.31 },
+            { label: '아우터', value: 0.46 },
+            { label: '없음', value: 0 }
+        ],
+        labelOptions: [
+            { label: '일반라벨', value: 0.03 },
+            { label: '없음', value: 0 }
+        ]
+    },
+    customs: {
+        tariffRates: [
+            { label: '8%', value: 8 },
+            { label: '0%', value: 0 },
+            { label: '13%', value: 13 } // 예시 추가
+        ],
+        shippingTypes: [
+            { label: 'LCL', value: 'LCL' },
+            { label: 'FCL', value: 'FCL' }
+        ],
+        commissionTypes: [
+            { label: '퍼센트(%)', value: 'percentage' },
+            { label: '개당(원)', value: 'perItem' }
+        ]
+    },
+    shipping: {
+        container20: { length: 5898, width: 2352, height: 2393 },
+        container40: { length: 12032, width: 2352, height: 2393 },
+        palletTypes: [
+            { label: '없음', value: 'none', length: 0, width: 0, height: 0 },
+            { label: '1100x1100', value: '1100x1100', length: 1100, width: 1100, height: 150 },
+            { label: '1000x1200', value: '1000x1200', length: 1000, width: 1200, height: 150 },
+            { label: '800x1200', value: '800x1200', length: 800, width: 1200, height: 150 },
+            { label: '1140x1140', value: '1140x1140', length: 1140, width: 1140, height: 150 },
+        ]
+    }
 };

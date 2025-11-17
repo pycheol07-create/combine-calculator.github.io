@@ -1,23 +1,21 @@
-// 'import'와 'export' 키워드를 모두 삭제합니다.
-// [수정됨] 모든 React 훅(useState, useRef 등) 앞에 'React.'를 추가합니다.
-// [수정됨] Gemini 관련 state 및 함수, 버튼 삭제
-
-// --- From components/ImportCalculator.tsx ---
-// [수정됨] onSaveCompare 프롭 제거
 const ImportCalculator = ({ exchangeRate, onExchangeRateChange }) => {
     const formRef = React.useRef(null);
-    // [삭제됨] Gemini 관련 state (isAnalysisOpen, saveButtonText, isSaving)
+    // [수정] SettingsContext 사용
+    const { settings } = React.useContext(SettingsContext);
     
     const [cnyToUsdRate, setCnyToUsdRate] = React.useState(null);
     const [liveRates, setLiveRates] = React.useState({ krw: null, cny: null });
     const [rateStatus, setRateStatus] = React.useState('loading');
 
+    // [수정] 초기값 설정을 위해 useEffect 사용 필요할 수도 있으나, 
+    // 여기서는 settings가 로드된 상태라고 가정하고 첫번째 옵션 값들을 기본으로 사용
+    // 안전하게 옵셔널 체이닝 사용
     const [formData, setFormData] = React.useState({
         productCost: '10',
-        commissionRate: String(COMMISSION_RATE_HIGH),
-        customsFeeRate: String(CUSTOMS_FEE_RATE_LOW),
-        packagingBag: String(PACKAGING_BAG_DEFAULT),
-        label: String(LABEL_DEFAULT),
+        commissionRate: String(settings.import.commissionRates[0]?.value || 0.035),
+        customsFeeRate: String(settings.import.customsFeeRates[0]?.value || 0.22),
+        packagingBag: String(settings.import.packagingOptions[0]?.value || 0.31),
+        label: String(settings.import.labelOptions[0]?.value || 0.03),
     });
 
     React.useEffect(() => {
@@ -85,53 +83,43 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange }) => {
         return { baseCostCNY, commissionCNY, totalCostCNY, totalCostUSD, totalCostKRW, customsFeeKRW, finalImportCost };
     }, [formData, cnyToUsdRate, exchangeRate]);
     
-    // [삭제됨] handleSave 함수
-
     const CurrencyYenIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 4h4m-5 4h5M5 8h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg>);
-
     const formatKRW = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0);
     const formatUSD = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
     const formatCNY = (value) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)} ¥`;
     const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
 
+    // [수정] 동적 옵션 렌더링을 위한 헬퍼 컴포넌트
     const ToggleFieldset = ({ label, name, value, options, onChange }) => (
         <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-            <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60">
-                {options.map((option) => (
-                    <label key={option.value} className={`relative flex-1 cursor-pointer py-2.5 px-3 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${ value === option.value ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                        <input type="radio" name={name} value={option.value} checked={value === option.value} onChange={onChange} className="sr-only" aria-labelledby={`${name}-label-${option.value}`} />
-                        <span id={`${name}-label-${option.value}`}>{option.label}</span>
+            <div className="flex flex-wrap gap-2 p-1 bg-slate-200/60 rounded-lg">
+                {options.map((option, idx) => (
+                    <label key={idx} className={`relative flex-1 min-w-[60px] cursor-pointer py-2.5 px-3 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${ String(value) === String(option.value) ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
+                        <input type="radio" name={name} value={option.value} checked={String(value) === String(option.value)} onChange={onChange} className="sr-only" />
+                        <span>{option.label}</span>
                     </label>
                 ))}
-            </fieldset>
+            </div>
         </div>
     );
 
-    const options = {
-        commissionRate: [{ label: '3.5%', value: String(COMMISSION_RATE_HIGH) }, { label: '0%', value: String(COMMISSION_RATE_LOW) }],
-        customsFeeRate: [{ label: '22%', value: String(CUSTOMS_FEE_RATE_LOW) }, { label: '29%', value: String(CUSTOMS_FEE_RATE_HIGH) }],
-        packagingBag: [{ label: '4호-기본', value: String(PACKAGING_BAG_DEFAULT) }, { label: '아우터', value: String(PACKAGING_BAG_OUTER) }, { label: '없음', value: String(PACKAGING_BAG_NONE) }],
-        label: [{ label: '일반라벨', value: String(LABEL_DEFAULT) }, { label: '없음', value: String(LABEL_NONE) }],
-    };
-
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
-            {/* [삭제됨] AnalysisModal */}
             <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
                 <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">정보 입력</h2>
                 <div className="space-y-6">
                     <InputControl label="상품원가" name="productCost" value={formData.productCost} onChange={handleInputChange} unit="위안화" icon={<CurrencyYenIcon />} onKeyDown={handleKeyDown} />
-                    <ToggleFieldset label="수수료" name="commissionRate" value={formData.commissionRate} options={options.commissionRate} onChange={handleInputChange} />
-                    <ToggleFieldset label="통관비" name="customsFeeRate" value={formData.customsFeeRate} options={options.customsFeeRate} onChange={handleInputChange} />
-                    <ToggleFieldset label="포장봉투" name="packagingBag" value={formData.packagingBag} options={options.packagingBag} onChange={handleInputChange} />
-                    <ToggleFieldset label="라벨" name="label" value={formData.label} options={options.label} onChange={handleInputChange} />
+                    
+                    {/* [수정] settings에서 옵션 가져오기 */}
+                    <ToggleFieldset label="수수료" name="commissionRate" value={formData.commissionRate} options={settings.import.commissionRates} onChange={handleInputChange} />
+                    <ToggleFieldset label="통관비" name="customsFeeRate" value={formData.customsFeeRate} options={settings.import.customsFeeRates} onChange={handleInputChange} />
+                    <ToggleFieldset label="포장봉투" name="packagingBag" value={formData.packagingBag} options={settings.import.packagingOptions} onChange={handleInputChange} />
+                    <ToggleFieldset label="라벨" name="label" value={formData.label} options={settings.import.labelOptions} onChange={handleInputChange} />
                     
                     <div>
                         <InputControl label="관세청 고시환율" name="exchangeRate" value={exchangeRate} onChange={(e) => onExchangeRateChange(e.target.value)} unit="원-달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
-                        <p className="text-xs text-gray-500 mt-1 px-1">정확한 계산을 위해 <a href="https://unipass.customs.go.kr/csp/index.do?tgMenuId=MYC_EXIM_005" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline font-medium">관세청 고시환율</a>을 직접 입력해주세요.</p>
                     </div>
-
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">현재 환율 (참고용)</label>
                         <LiveRateDisplay rates={liveRates} status={rateStatus} />
@@ -155,7 +143,6 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange }) => {
                         <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">원화 환산 금액</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.totalCostKRW} formatter={formatKRW} /></span></div>
                         <div className="flex justify-between py-2"><span className="text-gray-600">통관비</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.customsFeeKRW} formatter={formatKRW} /></span></div>
                     </div>
-                     {/* [삭제됨] Gemini 기능 버튼 섹션 */}
                 </div>
             ) : (
                 <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 flex flex-col items-center justify-center text-center">
