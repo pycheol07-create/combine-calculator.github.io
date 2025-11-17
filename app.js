@@ -1,22 +1,20 @@
-// [수정됨] React와 ReactDOM을 importmap에서 불러옵니다.
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import ReactDOM from 'react-dom/client';
+// [수정됨] 'import' 구문을 모두 삭제합니다.
+// [수정됨] 모든 React 훅(useState, useEffect 등) 앞에 'React.'를 추가합니다.
 
 // (참고: ComparisonModal, ImportCalculator 등 다른 컴포넌트들은
 //  index.html에서 이 파일보다 먼저 로드되어 전역으로 사용 가능합니다.)
 
-
 // --- 2. From App.tsx ---
 // 메인 컴포넌트
 const App = () => {
-    // [수정됨] 'React.' 접두사 제거 (import 했으므로)
-    const [activeTabId, setActiveTabId] = useState('import');
-    const [exchangeRate, setExchangeRate] = useState(() => localStorage.getItem('exchangeRate') || '1350');
-    const [comparisonScenarios, setComparisonScenarios] = useState([]);
-    const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+    // [수정됨] 'React.' 접두사 다시 추가
+    const [activeTabId, setActiveTabId] = React.useState('import');
+    const [exchangeRate, setExchangeRate] = React.useState(() => localStorage.getItem('exchangeRate') || '1350');
+    const [comparisonScenarios, setComparisonScenarios] = React.useState([]);
+    const [isComparisonOpen, setIsComparisonOpen] = React.useState(false);
 
-    useEffect(() => { localStorage.setItem('exchangeRate', exchangeRate); }, [exchangeRate]);
-    useEffect(() => { try { const saved = localStorage.getItem('comparisonScenarios'); if(saved) setComparisonScenarios(JSON.parse(saved)); } catch (e) { console.error("Failed to parse scenarios", e) } }, []);
+    React.useEffect(() => { localStorage.setItem('exchangeRate', exchangeRate); }, [exchangeRate]);
+    React.useEffect(() => { try { const saved = localStorage.getItem('comparisonScenarios'); if(saved) setComparisonScenarios(JSON.parse(saved)); } catch (e) { console.error("Failed to parse scenarios", e) } }, []);
     
     const handleSaveCompare = (type, data) => {
         const newScenario = { type, data, id: Date.now() + Math.random() };
@@ -33,15 +31,15 @@ const App = () => {
         setComparisonOpen(false);
     };
 
-    const tabs = useMemo(() => [
+    const tabs = React.useMemo(() => [
         { id: 'import', title: '수입가', component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
         { id: 'customs', title: '통관비', component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
         { id: 'shipping', title: '선적', component: <ShippingCalculator /> },
     ], [exchangeRate, comparisonScenarios]);
 
     // --- Swipe Logic ---
-    const touchStartX = useRef(null); const touchDeltaX = useRef(0); const [isSwiping, setIsSwiping] = useState(false);
-    const activeTabIndex = useMemo(() => tabs.findIndex(tab => tab.id === activeTabId), [tabs, activeTabId]);
+    const touchStartX = React.useRef(null); const touchDeltaX = React.useRef(0); const [isSwiping, setIsSwiping] = React.useState(false);
+    const activeTabIndex = React.useMemo(() => tabs.findIndex(tab => tab.id === activeTabId), [tabs, activeTabId]);
     const handleTouchStart = (e) => { if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName) || e.target.closest('[role="button"]')) return; touchStartX.current = e.touches[0].clientX; touchDeltaX.current = 0; setIsSwiping(true); };
     const handleTouchMove = (e) => { if (!isSwiping || touchStartX.current === null) return; touchDeltaX.current = e.touches[0].clientX - touchStartX.current; };
     const handleTouchEnd = () => { if (!isSwiping) return; const swipeThreshold = 50; if (Math.abs(touchDeltaX.current) > swipeThreshold) { if (touchDeltaX.current < 0) { if (activeTabIndex < tabs.length - 1) setActiveTabId(tabs[activeTabIndex + 1].id); } else { if (activeTabIndex > 0) setActiveTabId(tabs[activeTabIndex - 1].id); } } setIsSwiping(false); touchStartX.current = null; touchDeltaX.current = 0; };
@@ -88,6 +86,7 @@ const App = () => {
 // React 앱을 #root 에 렌더링
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error("Could not find root element to mount to");
+// [수정됨] ReactDOM.createRoot
 const root = ReactDOM.createRoot(rootElement);
-// [수정됨] React.StrictMode 제거 (import React를 사용하므로 필요 없음)
-root.render(<App />);
+// [수정됨] React.StrictMode
+root.render(<React.StrictMode><App /></React.StrictMode>);
