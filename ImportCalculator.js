@@ -1,12 +1,12 @@
 // 'import'와 'export' 키워드를 모두 삭제합니다.
 // [수정됨] 모든 React 훅(useState, useRef 등) 앞에 'React.'를 추가합니다.
+// [수정됨] Gemini 관련 state 및 함수, 버튼 삭제
 
 // --- From components/ImportCalculator.tsx ---
-const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
+// [수정됨] onSaveCompare 프롭 제거
+const ImportCalculator = ({ exchangeRate, onExchangeRateChange }) => {
     const formRef = React.useRef(null);
-    const [isAnalysisOpen, setIsAnalysisOpen] = React.useState(false);
-    const [saveButtonText, setSaveButtonText] = React.useState('비교용으로 저장');
-    const [isSaving, setIsSaving] = React.useState(false);
+    // [삭제됨] Gemini 관련 state (isAnalysisOpen, saveButtonText, isSaving)
     
     const [cnyToUsdRate, setCnyToUsdRate] = React.useState(null);
     const [liveRates, setLiveRates] = React.useState({ krw: null, cny: null });
@@ -85,22 +85,13 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare })
         return { baseCostCNY, commissionCNY, totalCostCNY, totalCostUSD, totalCostKRW, customsFeeKRW, finalImportCost };
     }, [formData, cnyToUsdRate, exchangeRate]);
     
-    const handleSave = () => {
-        if (isSaving) return;
-        onSaveCompare('import', { results });
-        setSaveButtonText('✅ 저장됨!');
-        setIsSaving(true);
-        setTimeout(() => {
-            setSaveButtonText('비교용으로 저장');
-            setIsSaving(false);
-        }, 1500);
-    };
+    // [삭제됨] handleSave 함수
 
     const CurrencyYenIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 4h4m-5 4h5M5 8h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg>);
 
-    const formatKRW = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0); // Added fallback
-    const formatUSD = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0); // Added fallback
-    const formatCNY = (value) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)} ¥`; // Added fallback
+    const formatKRW = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0);
+    const formatUSD = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
+    const formatCNY = (value) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)} ¥`;
     const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
 
     const ToggleFieldset = ({ label, name, value, options, onChange }) => (
@@ -126,7 +117,7 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare })
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
-            <AnalysisModal show={isAnalysisOpen} onClose={() => setIsAnalysisOpen(false)} results={results} calculatorType="import" />
+            {/* [삭제됨] AnalysisModal */}
             <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
                 <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">정보 입력</h2>
                 <div className="space-y-6">
@@ -164,13 +155,7 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare })
                         <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">원화 환산 금액</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.totalCostKRW} formatter={formatKRW} /></span></div>
                         <div className="flex justify-between py-2"><span className="text-gray-600">통관비</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.customsFeeKRW} formatter={formatKRW} /></span></div>
                     </div>
-                     <div className="mt-6 pt-6 border-t border-dashed">
-                        <h3 className="text-sm font-bold text-center text-emerald-700 mb-3">✨ Gemini 기능</h3>
-                        <div className="flex gap-2 justify-center">
-                            <button onClick={() => setAnalysisOpen(true)} className="flex-1 px-4 py-2 text-sm font-semibold bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200">상세 분석 보기</button>
-                            <button onClick={handleSave} disabled={isSaving} className="flex-1 px-4 py-2 text-sm font-semibold bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">{saveButtonText}</button>
-                        </div>
-                    </div>
+                     {/* [삭제됨] Gemini 기능 버튼 섹션 */}
                 </div>
             ) : (
                 <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 flex flex-col items-center justify-center text-center">

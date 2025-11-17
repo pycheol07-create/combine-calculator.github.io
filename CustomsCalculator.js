@@ -1,12 +1,11 @@
 // 'import'와 'export' 키워드를 모두 삭제합니다.
 // [수정됨] 모든 React 훅(useState, useRef 등) 앞에 'React.'를 추가합니다.
+// [수정됨] AnalysisModal, ResultCard 관련 코드 삭제
 
 // --- From components/CustomsCalculator.tsx ---
 const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
       const formRef = React.useRef(null);
-      const [isAnalysisOpen, setIsAnalysisOpen] = React.useState(false);
-      const [saveButtonText, setSaveButtonText] = React.useState('비교용으로 저장');
-      const [isSaving, setIsSaving] = React.useState(false);
+      // [삭제됨] Gemini 관련 state
       const [calculationMode, setCalculationMode] = React.useState('product');
       
       const [liveRates, setLiveRates] = React.useState({ krw: null, cny: null });
@@ -22,9 +21,8 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
         tariffRate: '8',
         shippingType: 'LCL',
         containerCost: '',
-        // --- NEW FORM STATES ---
-        commissionType: 'percentage', // 'percentage' or 'perItem'
-        commissionValue: '0', // Stored as string like other inputs
+        commissionType: 'percentage',
+        commissionValue: '0',
       });
 
       React.useEffect(() => {
@@ -80,7 +78,7 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
         const results = React.useMemo(() => {
           const exchangeRateValue = parseFloat(exchangeRate) || 1;
           const tariffRateValue = parseFloat(formData.tariffRate) / 100;
-          const { shippingType, containerCost, commissionType, commissionValue } = formData; // Added commission fields
+          const { shippingType, containerCost, commissionType, commissionValue } = formData;
           const weightPerBox = parseFloat(formData.weightPerBox) || 0;
           
           let totalBoxes;
@@ -88,7 +86,7 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
           let totalWeight;
           let productQuantity = 0;
           let costPerItem = 0;
-          let commissionAmountKRW = 0; // --- NEW ---
+          let commissionAmountKRW = 0;
 
           if (exchangeRateValue === 0) return null;
 
@@ -106,10 +104,8 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
               totalProductPriceUSD = parseFloat(formData.totalProductPrice) || 0;
 
               if (totalBoxes === 0 || totalProductPriceUSD === 0) return null;
-              // Note: Per-item commission cannot be calculated in box mode
               if (commissionType === 'perItem') {
-                  // Optionally, show a warning or disable per-item in box mode
-                  // For now, commission will be 0 in this case
+                  // 박스 모드에서는 개당 수수료 0
               }
           }
 
@@ -134,21 +130,17 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
           const vatAmount = vatAmountUSD * exchangeRateValue;
           const totalTaxes = tariffAmount + vatAmount;
         
-          // --- Calculate Commission ---
           const commissionValueNum = parseFloat(commissionValue) || 0;
           if (commissionType === 'percentage') {
               commissionAmountKRW = totalProductPriceKRW * (commissionValueNum / 100);
           } else if (commissionType === 'perItem' && calculationMode === 'product' && productQuantity > 0) {
               commissionAmountKRW = commissionValueNum * productQuantity;
           }
-          // --- End Commission Calc ---
           
           const taxableBase = totalProductPriceKRW + oceanFreightKRW;
-          // --- Add commission to total cost ---
           const totalCost = DOCS_FEE + CO_FEE + oceanFreightKRW + totalTaxes + commissionAmountKRW; 
           
           if (calculationMode === 'product' && productQuantity > 0) {
-              // --- Include commission in per-item cost ---
               costPerItem = (totalProductPriceKRW + totalCost) / productQuantity; 
           }
         
@@ -165,23 +157,31 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
             totalTaxes,
             docsFee: DOCS_FEE,
             coFee: CO_FEE,
-            commissionAmountKRW, // --- NEW ---
+            commissionAmountKRW,
             totalCost,
             costPerItem,
           };
-        }, [formData, calculationMode, exchangeRate]); // Added commission fields to dependency array
+        }, [formData, calculationMode, exchangeRate]);
       
-      const handleSave = () => {
-          if (isSaving) return;
-          // Pass results including commission to save function
-          onSaveCompare('customs', { results, shippingType: formData.shippingType }); 
-          setSaveButtonText('✅ 저장됨!');
-          setIsSaving(true);
-          setTimeout(() => {
-              setSaveButtonText('비교용으로 저장');
-              setIsSaving(false);
-          }, 1500);
+      // [삭제됨] handleSave 함수
+
+      // --- [새로 추가됨] ---
+      // ResultCard가 없어졌으므로 포맷 함수를 직접 정의합니다.
+      const formatCurrency = (value, currency = 'KRW') => {
+        const numericValue = typeof value === 'number' && !isNaN(value) ? value : 0;
+        return new Intl.NumberFormat('ko-KR', {
+          style: 'currency',
+          currency: currency,
+          minimumFractionDigits: currency === 'USD' ? 2 : 0,
+        }).format(numericValue);
       };
+      
+      const AnimatedNumber = ({ value, formatter }) => {
+          const numericValue = typeof value === 'number' && !isNaN(value) ? value : 0;
+          return <>{formatter(numericValue)}</>;
+      };
+      // --- [여기까지 새로 추가됨] ---
+
 
       // --- Icons ---
       const CalculatorIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 14h.01M12 11h.01M15 11h.01M9 11h.01M12 21a9 9 0 110-18 9 9 0 010 18z" /></svg>);
@@ -204,12 +204,11 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
       const calculationModeOptions = [{ label: '상품기준', value: 'product' }, { label: '박스기준', value: 'box' }];
       const shippingOptions = [{ label: 'LCL', value: 'LCL' }, { label: 'FCL', value: 'FCL' }];
       const tariffOptions = [{ label: '0%', value: '0' }, { label: '8%', value: '8' }];
-      // --- NEW: Commission Options ---
       const commissionTypeOptions = [{ label: '퍼센트(%)', value: 'percentage' }, { label: '개당(원)', value: 'perItem' }];
 
       return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
-            <AnalysisModal show={isAnalysisOpen} onClose={() => setAnalysisOpen(false)} results={results} calculatorType="customs" />
+            {/* [삭제됨] AnalysisModal */}
             <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
               {/* Calculation Mode & Shipping Type */}
               <div className="grid grid-cols-2 gap-x-4 mb-8">
@@ -255,7 +254,7 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
                     <p className="text-xs text-gray-500 mt-1 px-1">정확한 계산을 위해 <a href="https://unipass.customs.go.kr/csp/index.do?tgMenuId=MYC_EXIM_005" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline font-medium">관세청 고시환율</a>을 직접 입력해주세요.</p>
                 </div>
                 
-                {/* --- NEW: Commission Section --- */}
+                {/* --- Commission Section --- */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">수수료</label>
                   <div className="grid grid-cols-2 gap-x-2">
@@ -266,7 +265,6 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
                                   formData.commissionType === option.value ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'
                               } transition-all duration-300 ease-in-out`}>
                                   <input type="radio" name="commissionType" value={option.value} checked={formData.commissionType === option.value} onChange={handleInputChange} className="sr-only" aria-labelledby={`commission-label-${option.value}`} 
-                                    // Disable 'perItem' if in 'box' calculation mode
                                     disabled={calculationMode === 'box' && option.value === 'perItem'} />
                                   <span id={`commission-label-${option.value}`} className={calculationMode === 'box' && option.value === 'perItem' ? 'opacity-50 cursor-not-allowed' : ''}>{option.label}</span>
                               </label>
@@ -274,7 +272,7 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
                       </fieldset>
                       {/* Commission Value Input */}
                       <InputControl 
-                        label="" // No label needed here as it's part of the section
+                        label=""
                         name="commissionValue" 
                         value={formData.commissionValue} 
                         onChange={handleInputChange} 
@@ -282,16 +280,13 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
                         icon={formData.commissionType === 'percentage' ? <PercentageIcon /> : <CurrencyWonIcon />} 
                         onKeyDown={handleKeyDown} 
                         placeholder="0"
-                        // Disable if 'perItem' is selected in 'box' mode
                         disabled={calculationMode === 'box' && formData.commissionType === 'perItem'}
                       />
                   </div>
-                   {/* Warning for 'perItem' in 'box' mode */}
                    {calculationMode === 'box' && formData.commissionType === 'perItem' && (
                        <p className="text-xs text-red-600 mt-1 px-1">박스 기준 계산 시 개당 수수료는 적용되지 않습니다.</p>
                    )}
                 </div>
-                {/* --- END NEW --- */}
                 
                 {/* Tariff */}
                 <div>
@@ -322,17 +317,33 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
               </div> 
             </div>
             
-            {/* Results Area */}
+            {/* --- [수정됨] Results Area --- */}
+            {/* ResultCard 대신 ImportCalculator와 유사한 단일 박스 레이아웃으로 변경 */}
             {results ? (
               <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
-                    <ResultCard results={results} />
-                    <div className="mt-6 pt-6 border-t border-dashed">
-                        <h3 className="text-sm font-bold text-center text-emerald-700 mb-3">✨ Gemini 기능</h3>
-                        <div className="flex gap-2 justify-center">
-                            <button onClick={() => setAnalysisOpen(true)} className="flex-1 px-4 py-2 text-sm font-semibold bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200">상세 분석 보기</button>
-                            <button onClick={handleSave} disabled={isSaving} className="flex-1 px-4 py-2 text-sm font-semibold bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">{saveButtonText}</button>
-                        </div>
-                    </div>
+                  <div className="text-center mb-6">
+                      <p className="text-lg text-gray-600">최종 통관 비용</p>
+                      <p className="text-5xl font-extrabold text-emerald-600 tracking-tight my-2">
+                         <AnimatedNumber value={results.totalCost} formatter={formatCurrency} />
+                      </p>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                      <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">총 상품가 (KRW)</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.totalProductPriceKRW} formatter={formatCurrency} /></span></div>
+                      <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">해운비</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.oceanFreightKRW} formatter={formatCurrency} /></span></div>
+                      
+                      {results.commissionAmountKRW > 0 && (
+                        <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">수수료</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.commissionAmountKRW} formatter={formatCurrency} /></span></div>
+                      )}
+                      
+                      <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">관세</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.tariffAmount} formatter={formatCurrency} /></span></div>
+                      <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">부가가치세</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.vatAmount} formatter={formatCurrency} /></span></div>
+                      <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">기타 고정 수수료</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.docsFee + results.coFee} formatter={formatCurrency} /></span></div>
+                      
+                      {results.costPerItem > 0 && (
+                        <div className="flex justify-between py-2 font-bold"><span className="text-gray-700">개당 최종 원가</span><span className="text-gray-900"><AnimatedNumber value={results.costPerItem} formatter={formatCurrency} /></span></div>
+                      )}
+                  </div>
+                   {/* [삭제됨] Gemini 기능 버튼 섹션 */}
                 </div>
             ) : (
               <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 flex flex-col items-center justify-center text-center">
@@ -341,6 +352,7 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
                   <p className="text-gray-500 mt-2">좌측에 정보를 입력하면<br /> 예상 통관 비용이 자동으로 계산됩니다.</p>
               </div>
             )}
+            {/* --- [여기까지 수정됨] --- */}
           </div>
       );
 };
