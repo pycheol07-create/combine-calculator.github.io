@@ -1,7 +1,7 @@
+// [수정됨] 'LCL 최소 CBM' 설정 추가
 const AdminPage = ({ onClose }) => {
     const { settings, updateSettings, resetSettings } = React.useContext(SettingsContext);
     
-    // 로컬 상태로 관리하다가 저장 버튼 누르면 전역 반영
     const [localSettings, setLocalSettings] = React.useState(settings);
     const [activeTab, setActiveTab] = React.useState('common');
 
@@ -15,7 +15,6 @@ const AdminPage = ({ onClose }) => {
         }));
     };
 
-    // 리스트 항목 수정 (Label, Value)
     const handleArrayChange = (category, arrayName, index, field, value) => {
         const newArray = [...localSettings[category][arrayName]];
         newArray[index] = { ...newArray[index], [field]: value };
@@ -29,7 +28,6 @@ const AdminPage = ({ onClose }) => {
         }));
     };
 
-    // 리스트 항목 추가
     const handleAddItem = (category, arrayName, template) => {
         setLocalSettings(prev => ({
             ...prev,
@@ -40,7 +38,6 @@ const AdminPage = ({ onClose }) => {
         }));
     };
 
-    // 리스트 항목 삭제
     const handleDeleteItem = (category, arrayName, index) => {
         const newArray = localSettings[category][arrayName].filter((_, i) => i !== index);
         setLocalSettings(prev => ({
@@ -58,7 +55,6 @@ const AdminPage = ({ onClose }) => {
         onClose();
     };
 
-    // --- UI Components ---
     const SectionTitle = ({ title }) => <h3 className="text-lg font-bold text-gray-800 mt-6 mb-3 border-b pb-2">{title}</h3>;
     const InputRow = ({ label, value, onChange, unit }) => (
         <div className="flex items-center justify-between py-2">
@@ -117,6 +113,10 @@ const AdminPage = ({ onClose }) => {
                             <InputRow label="서류비 (Docs Fee)" value={localSettings.common.docsFee} onChange={v => handleNumberChange('common', 'docsFee', v)} unit="원" />
                             <InputRow label="CO 발급비" value={localSettings.common.coFee} onChange={v => handleNumberChange('common', 'coFee', v)} unit="원" />
                             <InputRow label="해운비 기준가 (Per CBM)" value={localSettings.common.oceanFreightPerCbm} onChange={v => handleNumberChange('common', 'oceanFreightPerCbm', v)} unit="원" />
+                            
+                            {/* [추가됨] LCL 최소 CBM 설정 */}
+                            <InputRow label="LCL 최소 CBM (기본 1.0)" value={localSettings.common.minCbm} onChange={v => handleNumberChange('common', 'minCbm', v)} unit="CBM" />
+                            
                             <InputRow label="CBM 무게 나누기 기준" value={localSettings.common.cbmWeightDivisor} onChange={v => handleNumberChange('common', 'cbmWeightDivisor', v)} unit="" />
                             <InputRow label="부가세율 (0.1 = 10%)" value={localSettings.common.vatRate} onChange={v => handleNumberChange('common', 'vatRate', v)} unit="" />
                         </div>

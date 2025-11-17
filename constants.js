@@ -1,10 +1,10 @@
-// [수정됨] 개별 상수가 아닌, 구조화된 기본 설정 객체(DEFAULT_SETTINGS)를 정의합니다.
-
+// [수정됨] minCbm (최소 CBM) 설정 추가
 const DEFAULT_SETTINGS = {
     common: {
         docsFee: 88000,
         coFee: 43700,
         oceanFreightPerCbm: 110000,
+        minCbm: 1.0, // [추가] LCL 최소 과금 CBM (보통 1.0)
         cbmWeightDivisor: 250,
         vatRate: 0.1,
     },
@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS = {
         tariffRates: [
             { label: '8%', value: 8 },
             { label: '0%', value: 0 },
-            { label: '13%', value: 13 } // 예시 추가
+            { label: '13%', value: 13 }
         ],
         shippingTypes: [
             { label: 'LCL', value: 'LCL' },

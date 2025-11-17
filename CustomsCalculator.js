@@ -1,6 +1,7 @@
+// [수정됨] minCbm 적용 및 EfficiencyAnalysis 연결
+
 const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
       const formRef = React.useRef(null);
-      // [수정] SettingsContext 사용
       const { settings } = React.useContext(SettingsContext);
 
       const [calculationMode, setCalculationMode] = React.useState('product');
@@ -9,6 +10,9 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
       const [isTaxesExpanded, setIsTaxesExpanded] = React.useState(false);
       const [isFeesExpanded, setIsFeesExpanded] = React.useState(false);
       
+      // [추가] 분석 모달 상태
+      const [isAnalysisOpen, setIsAnalysisOpen] = React.useState(false);
+
       const [formData, setFormData] = React.useState({
         productQuantity: '1000',
         unitPrice: '10',
@@ -23,9 +27,24 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
         commissionValue: '0',
       });
 
-      // ... (useEffect, Event Handlers 동일) ...
       React.useEffect(() => {
-        const fetchLiveRates = async () => { /* 동일 */ };
+        const fetchLiveRates = async () => {
+            setRateStatus('loading');
+            try {
+                const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+                if (!response.ok) throw new Error('API response was not ok');
+                const data = await response.json();
+                if (data && data.rates && data.rates.KRW && data.rates.CNY) {
+                    setLiveRates({ krw: data.rates.KRW, cny: data.rates.CNY });
+                    setRateStatus('success');
+                } else {
+                    throw new Error('Invalid data format');
+                }
+            } catch (error) {
+                console.error("Failed to fetch live rates:", error);
+                setRateStatus('error');
+            }
+        };
         fetchLiveRates();
       }, []);
       
@@ -34,22 +53,35 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
           setFormData(prev => ({ ...prev, [name]: value }));
       }, []);
       const handleModeChange = React.useCallback((e) => { setCalculationMode(e.target.value); }, []);
-      const handleKeyDown = React.useCallback((e) => { /* 동일 */ }, []);
+      const handleKeyDown = React.useCallback((e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const form = formRef.current;
+            if (!form) return;
+            const focusable = Array.from(form.querySelectorAll('input:not([type="radio"]), select'));
+            const index = focusable.indexOf(e.target);
+            if (index > -1 && index < focusable.length - 1) {
+              focusable[index + 1].focus();
+            } else if (index === focusable.length - 1) {
+              document.activeElement?.blur();
+            }
+          }
+      }, []);
 
       const results = React.useMemo(() => {
-          // [수정] 상수 대신 settings.common 값 사용
           const DOCS_FEE = settings.common.docsFee;
           const CO_FEE = settings.common.coFee;
           const OCEAN_FREIGHT_RATE_PER_CBM = settings.common.oceanFreightPerCbm;
           const CBM_WEIGHT_DIVISOR = settings.common.cbmWeightDivisor;
           const VAT_RATE = settings.common.vatRate;
+          // [추가] minCbm
+          const MIN_CBM = settings.common.minCbm || 0;
 
           const exchangeRateValue = parseFloat(exchangeRate) || 1;
           const tariffRateValue = parseFloat(formData.tariffRate) / 100;
           const { shippingType, containerCost, commissionType, commissionValue } = formData;
           const weightPerBox = parseFloat(formData.weightPerBox) || 0;
           
-          // ... (계산 로직 동일) ...
           let totalBoxes;
           let totalProductPriceUSD;
           let totalWeight;
@@ -79,7 +111,9 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
           if (shippingType === 'FCL') {
               oceanFreightKRW = parseFloat(containerCost) || 0;
           } else { // LCL
-              oceanFreightKRW = cbm * OCEAN_FREIGHT_RATE_PER_CBM;
+              // [수정] 최소 CBM 적용 (LCL인 경우)
+              const chargeableCbm = Math.max(cbm, MIN_CBM);
+              oceanFreightKRW = chargeableCbm * OCEAN_FREIGHT_RATE_PER_CBM;
           }
 
           const oceanFreightUSD = oceanFreightKRW / exchangeRateValue;
@@ -112,9 +146,8 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
             taxableBase, tariffAmount, vatAmount, totalTaxes,
             docsFee: DOCS_FEE, coFee: CO_FEE, commissionAmountKRW, totalCost, costPerItem,
           };
-      }, [formData, calculationMode, exchangeRate, settings]); // [수정] settings 의존성 추가
+      }, [formData, calculationMode, exchangeRate, settings]);
 
-      // ... (Helper functions & Icons 동일) ...
       const formatCurrency = (v, c='KRW') => new Intl.NumberFormat('ko-KR', {style:'currency', currency:c, minimumFractionDigits: c==='USD'?2:0}).format(typeof v==='number'&&!isNaN(v)?v:0);
       const formatNumber = (v, u='', d=2) => `${new Intl.NumberFormat('ko-KR', {maximumFractionDigits:d}).format(typeof v==='number'&&!isNaN(v)?v:0)} ${u}`;
       const AnimatedNumber = ({value, formatter}) => <>{formatter(typeof value==='number'&&!isNaN(value)?value:0)}</>;
@@ -155,7 +188,6 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
         { label: "총 상품 금액", name: "totalProductPrice", unit: "USD", icon: <CurrencyDollarIcon /> },
       ];
       
-      // [수정] 옵션값들을 settings에서 가져옴
       const calculationModeOptions = [{ label: '상품기준', value: 'product' }, { label: '박스기준', value: 'box' }];
       const shippingOptions = settings.customs.shippingTypes;
       const tariffOptions = settings.customs.tariffRates;
@@ -164,7 +196,6 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
       return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
             <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
-              {/* ... (모드 선택 및 운송 형태 UI) */}
               <div className="grid grid-cols-2 gap-x-4 mb-8">
                   <div>
                       <h3 className="text-base font-semibold text-gray-800 mb-3 text-center">계산 기준</h3>
@@ -201,7 +232,6 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
                     <InputControl label="고시환율" name="exchangeRate" value={exchangeRate} onChange={(e) => onExchangeRateChange(e.target.value)} unit="원-달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
                 </div>
                 
-                {/* 수수료 섹션 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">수수료</label>
                   <div className="grid grid-cols-2 gap-x-2">
@@ -220,7 +250,6 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
                   </div>
                 </div>
                 
-                {/* 관세 섹션 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">관세</label>
                   <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 overflow-x-auto">
@@ -246,10 +275,21 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
               </div> 
             </div>
             
+            {/* [추가된 부분] EfficiencyAnalysis 컴포넌트 렌더링 */}
+            <EfficiencyAnalysis 
+                show={isAnalysisOpen} 
+                onClose={() => setIsAnalysisOpen(false)} 
+                formData={formData} 
+                exchangeRate={exchangeRate}
+                calculationMode={calculationMode}
+            />
+
             {results ? (
               <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
-                  {/* ... (결과창 UI - 이전과 동일) ... */}
-                  <div className="text-center mb-6"><p className="text-lg text-gray-600">최종 통관 비용</p><p className="text-5xl font-extrabold text-emerald-600 tracking-tight my-2"><AnimatedNumber value={results.totalCost} formatter={formatCurrency} /></p></div>
+                  <div className="text-center mb-6">
+                      <p className="text-lg text-gray-600">최종 통관 비용</p>
+                      <p className="text-5xl font-extrabold text-emerald-600 tracking-tight my-2"><AnimatedNumber value={results.totalCost} formatter={formatCurrency} /></p>
+                  </div>
                   <div className="space-y-1 divide-y divide-slate-200">
                     <ResultItem label="총 상품가" value={<AnimatedNumber value={results.totalProductPriceKRW} formatter={formatCurrency} />} icon={Icons.Price} />
                     <ResultItem label="해운비" value={<AnimatedNumber value={results.oceanFreightKRW} formatter={formatCurrency} />} icon={Icons.Shipping} />
@@ -263,6 +303,14 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
                         <div onClick={() => setIsFeesExpanded(!isFeesExpanded)} className="flex items-center justify-between py-3 cursor-pointer"><div className="flex items-center"><div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-emerald-100">{Icons.Fee}</div><span className="ml-4 font-medium text-gray-800">기타 고정 수수료</span></div><div className="flex items-center"><span className="font-semibold text-gray-900"><AnimatedNumber value={results.docsFee + results.coFee} formatter={formatCurrency} /></span><span className={`ml-2 transform transition-transform duration-200 ${isFeesExpanded ? 'rotate-180' : ''}`}>{Icons.ChevronDown}</span></div></div>
                         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isFeesExpanded ? 'max-h-40' : 'max-h-0'}`}><ResultItem label="서류비" value={<AnimatedNumber value={results.docsFee} formatter={formatCurrency} />} icon={Icons.DocsFee} isSub={true} /><ResultItem label="CO발급비" value={<AnimatedNumber value={results.coFee} formatter={formatCurrency} />} icon={Icons.CoFee} isSub={true} /></div>
                     </div>
+                  </div>
+
+                  {/* [추가된 부분] 분석 버튼 */}
+                  <div className="mt-6 pt-6 border-t border-dashed">
+                    <button onClick={() => setIsAnalysisOpen(true)} className="w-full py-3 bg-emerald-50 text-emerald-700 font-bold rounded-xl hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2">
+                        <span>📦 운송 효율 분석 (최적 수량 찾기)</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" /></svg>
+                    </button>
                   </div>
               </div>
             ) : (
