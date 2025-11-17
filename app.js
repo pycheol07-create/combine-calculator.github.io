@@ -1,8 +1,13 @@
-// 메인 컴포넌트
+// [수정됨] 'import' 구문 삭제 및 'React.' 접두사 사용
+
+// (참고: ComparisonModal, ImportCalculator 등 다른 컴포넌트들은
+//  index.html에서 이 파일보다 먼저 로드되어 전역으로 사용 가능합니다.)
+
+// --- 메인 컴포넌트 ---
 const App = () => {
     const [activeTabId, setActiveTabId] = React.useState('import');
     const [exchangeRate, setExchangeRate] = React.useState(() => localStorage.getItem('exchangeRate') || '1350');
-    const [isAdminOpen, setIsAdminOpen] = React.useState(false); // [추가] 관리자 페이지 상태
+    const [isAdminOpen, setIsAdminOpen] = React.useState(false);
 
     React.useEffect(() => { localStorage.setItem('exchangeRate', exchangeRate); }, [exchangeRate]);
     
@@ -12,16 +17,29 @@ const App = () => {
         { id: 'shipping', title: '선적', component: <ShippingCalculator /> },
     ], [exchangeRate]);
 
-    // ... (Swipe Logic 동일) ...
+    // --- Swipe Logic ---
+    const touchStartX = React.useRef(null); const touchDeltaX = React.useRef(0); const [isSwiping, setIsSwiping] = React.useState(false);
+    const activeTabIndex = React.useMemo(() => tabs.findIndex(tab => tab.id === activeTabId), [tabs, activeTabId]);
+    const handleTouchStart = (e) => { if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName) || e.target.closest('[role="button"]')) return; touchStartX.current = e.touches[0].clientX; touchDeltaX.current = 0; setIsSwiping(true); };
+    const handleTouchMove = (e) => { if (!isSwiping || touchStartX.current === null) return; touchDeltaX.current = e.touches[0].clientX - touchStartX.current; };
+    const handleTouchEnd = () => { if (!isSwiping) return; const swipeThreshold = 50; if (Math.abs(touchDeltaX.current) > swipeThreshold) { if (touchDeltaX.current < 0) { if (activeTabIndex < tabs.length - 1) setActiveTabId(tabs[activeTabIndex + 1].id); } else { if (activeTabIndex > 0) setActiveTabId(tabs[activeTabIndex - 1].id); } } setIsSwiping(false); touchStartX.current = null; touchDeltaX.current = 0; };
+    // --- End Swipe Logic ---
+
+    // [중요] 여기가 누락되었던 스타일 변수들입니다!
+    const tabStyles = "flex-1 py-3 px-4 text-center font-semibold rounded-t-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 transition-all duration-300";
+    const activeTabStyles = "bg-white/80 text-emerald-600 shadow-md";
+    const inactiveTabStyles = "bg-white/30 text-slate-600 hover:bg-white/50";
+    
+    const dragOffset = isSwiping ? touchDeltaX.current : 0;
+    const transformValue = `translateX(calc(-${activeTabIndex * 100}% + ${dragOffset}px))`;
 
     return (
-        // [중요] SettingsProvider로 전체를 감싸야 합니다!
         <SettingsProvider>
             {isAdminOpen && <AdminPage onClose={() => setIsAdminOpen(false)} />}
             
             <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
                 <div className="w-full max-w-6xl mx-auto flex flex-col h-full relative">
-                    {/* [추가] 관리자 설정 버튼 (우측 상단) */}
+                    {/* 관리자 설정 버튼 */}
                     <button 
                         onClick={() => setIsAdminOpen(true)} 
                         className="absolute top-0 right-0 p-2 text-gray-400 hover:text-gray-600"
@@ -39,7 +57,21 @@ const App = () => {
                     </header>
 
                     {/* Tabs */}
-                    <div className="w-full max-w-4xl mx-auto"><div className="flex mb-[-1px] z-10 relative">{tabs.map(tab => (<button key={tab.id} onClick={() => setActiveTabId(tab.id)} className={`${tabStyles} ${activeTabId === tab.id ? activeTabStyles : inactiveTabStyles}`} aria-selected={activeTabId === tab.id}><span className="sm:hidden">{tab.title}<br />계산기</span><span className="hidden sm:inline">{tab.title} 계산기</span></button>))}</div></div>
+                    <div className="w-full max-w-4xl mx-auto">
+                        <div className="flex mb-[-1px] z-10 relative">
+                            {tabs.map(tab => (
+                                <button 
+                                    key={tab.id} 
+                                    onClick={() => setActiveTabId(tab.id)} 
+                                    className={`${tabStyles} ${activeTabId === tab.id ? activeTabStyles : inactiveTabStyles}`} 
+                                    aria-selected={activeTabId === tab.id}
+                                >
+                                    <span className="sm:hidden">{tab.title}<br />계산기</span>
+                                    <span className="hidden sm:inline">{tab.title} 계산기</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
                     {/* Main Content Area */}
                     <main className="w-full overflow-hidden" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
