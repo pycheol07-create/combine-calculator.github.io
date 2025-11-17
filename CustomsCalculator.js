@@ -1,15 +1,18 @@
 // 'import'와 'export' 키워드를 모두 삭제합니다.
 // [수정됨] 모든 React 훅(useState, useRef 등) 앞에 'React.'를 추가합니다.
-// [수정됨] AnalysisModal, ResultCard 관련 코드 삭제
+// [수정됨] 세부 항목 확장 기능 및 아이콘 다시 추가
 
 // --- From components/CustomsCalculator.tsx ---
-const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
+const CustomsCalculator = ({ exchangeRate, onExchangeRateChange }) => {
       const formRef = React.useRef(null);
-      // [삭제됨] Gemini 관련 state
       const [calculationMode, setCalculationMode] = React.useState('product');
       
       const [liveRates, setLiveRates] = React.useState({ krw: null, cny: null });
       const [rateStatus, setRateStatus] = React.useState('loading');
+      
+      // [새로 추가됨] 확장/축소 상태
+      const [isTaxesExpanded, setIsTaxesExpanded] = React.useState(false);
+      const [isFeesExpanded, setIsFeesExpanded] = React.useState(false);
       
       const [formData, setFormData] = React.useState({
         productQuantity: '1000',
@@ -162,11 +165,9 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
             costPerItem,
           };
         }, [formData, calculationMode, exchangeRate]);
-      
-      // [삭제됨] handleSave 함수
 
       // --- [새로 추가됨] ---
-      // ResultCard가 없어졌으므로 포맷 함수를 직접 정의합니다.
+      // 포맷 함수 및 ResultItem 컴포넌트, Icons 객체
       const formatCurrency = (value, currency = 'KRW') => {
         const numericValue = typeof value === 'number' && !isNaN(value) ? value : 0;
         return new Intl.NumberFormat('ko-KR', {
@@ -175,10 +176,41 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
           minimumFractionDigits: currency === 'USD' ? 2 : 0,
         }).format(numericValue);
       };
+
+      const formatNumber = (value, unit = '', digits = 2) => {
+          const numericValue = typeof value === 'number' && !isNaN(value) ? value : 0;
+          return `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: digits }).format(numericValue)} ${unit}`;
+      }
       
       const AnimatedNumber = ({ value, formatter }) => {
           const numericValue = typeof value === 'number' && !isNaN(value) ? value : 0;
           return <>{formatter(numericValue)}</>;
+      };
+      
+      const ResultItem = ({ label, value, icon, isSub }) => (
+        <div className={`flex items-center justify-between py-3 ${isSub ? 'pl-10' : ''}`}>
+          <div className="flex items-center min-w-0"> {/* Added min-w-0 for flex shrink */}
+            <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${isSub ? 'bg-slate-100' : 'bg-emerald-100'}`}>
+              {icon}
+            </div>
+            <span className={`ml-4 font-medium truncate ${isSub ? 'text-sm text-gray-600' : 'text-gray-800'}`}>{label}</span>
+          </div>
+          <span className={`font-semibold text-right whitespace-nowrap ${isSub ? 'text-sm text-gray-700' : 'text-gray-900'}`}>{value}</span>
+        </div>
+      );
+
+      const Icons = {
+          Price: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+          Shipping: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 2h8a1 1 0 001-1z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 16h2a2 2 0 002-2V6a2 2 0 00-2-2h-1" /></svg>,
+          Tax: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 14l-6-6m5.5.5h.01M4.99 9h.01" /></svg>,
+          Fee: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+          Tariff: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7.014A8.003 8.003 0 0117.657 18.657z" /></svg>,
+          Vat: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+          DocsFee: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+          CoFee: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 4h3m-3 4h3" /></svg>,
+          ChevronDown: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>,
+          PriceTag: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A2 2 0 013 8V3z" /></svg>,
+          Receipt: <ReceiptIcon />, // Icons.js에서 로드된 전역 ReceiptIcon 사용
       };
       // --- [여기까지 새로 추가됨] ---
 
@@ -208,7 +240,6 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
 
       return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
-            {/* [삭제됨] AnalysisModal */}
             <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
               {/* Calculation Mode & Shipping Type */}
               <div className="grid grid-cols-2 gap-x-4 mb-8">
@@ -238,27 +269,19 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
 
               <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">상세 정보 입력</h2>
               
-              {/* --- Input Fields --- */}
               <div className="space-y-6">
-                {/* Product/Box Details */}
                 {(calculationMode === 'product' ? productModeFields : boxModeFields).map(field => (
                   <InputControl key={field.name} {...field} value={formData[field.name]} onChange={handleInputChange} onKeyDown={handleKeyDown} />
                 ))}
-
-                {/* Weight */}
                 <InputControl label="박스당 무게" name="weightPerBox" value={formData.weightPerBox} onChange={handleInputChange} unit="kg/박스" icon={<ScaleIcon />} onKeyDown={handleKeyDown} />
-
-                {/* Exchange Rate */}
                 <div>
                     <InputControl label="고시환율" name="exchangeRate" value={exchangeRate} onChange={(e) => onExchangeRateChange(e.target.value)} unit="원-달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
                     <p className="text-xs text-gray-500 mt-1 px-1">정확한 계산을 위해 <a href="https://unipass.customs.go.kr/csp/index.do?tgMenuId=MYC_EXIM_005" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline font-medium">관세청 고시환율</a>을 직접 입력해주세요.</p>
                 </div>
                 
-                {/* --- Commission Section --- */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">수수료</label>
                   <div className="grid grid-cols-2 gap-x-2">
-                      {/* Commission Type Selection */}
                       <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 h-full">
                           {commissionTypeOptions.map((option) => (
                               <label key={option.value} className={`relative flex-1 cursor-pointer py-2.5 px-3 text-center text-xs sm:text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${
@@ -270,7 +293,6 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
                               </label>
                           ))}
                       </fieldset>
-                      {/* Commission Value Input */}
                       <InputControl 
                         label=""
                         name="commissionValue" 
@@ -288,7 +310,6 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
                    )}
                 </div>
                 
-                {/* Tariff */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">관세</label>
                   <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60">
@@ -300,14 +321,10 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
                     ))}
                   </fieldset>
                 </div>
-
-                {/* Live Rates */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">현재 환율 (참고용)</label>
                     <LiveRateDisplay rates={liveRates} status={rateStatus} />
                 </div>
-
-                {/* Container Cost (Conditional) */}
                 <div className={`grid transition-all duration-300 ease-in-out ${formData.shippingType === 'FCL' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
                   <div className="overflow-hidden">
                     <InputControl label="컨테이너 비용" name="containerCost" value={formData.containerCost} onChange={handleInputChange} unit="원" icon={<CurrencyWonIcon />} onKeyDown={handleKeyDown} />
@@ -318,33 +335,133 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
             </div>
             
             {/* --- [수정됨] Results Area --- */}
-            {/* ResultCard 대신 ImportCalculator와 유사한 단일 박스 레이아웃으로 변경 */}
+            {/* 세부 항목 확장/축소 기능이 포함된 레이아웃으로 복원 */}
             {results ? (
               <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
                   <div className="text-center mb-6">
                       <p className="text-lg text-gray-600">최종 통관 비용</p>
                       <p className="text-5xl font-extrabold text-emerald-600 tracking-tight my-2">
-                         <AnimatedNumber value={results.totalCost} formatter={formatCurrency} />
+                          <AnimatedNumber value={results.totalCost} formatter={formatCurrency} />
                       </p>
                   </div>
-                  <div className="space-y-2 text-sm">
-                      <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">총 상품가 (KRW)</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.totalProductPriceKRW} formatter={formatCurrency} /></span></div>
-                      <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">해운비</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.oceanFreightKRW} formatter={formatCurrency} /></span></div>
-                      
-                      {results.commissionAmountKRW > 0 && (
-                        <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">수수료</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.commissionAmountKRW} formatter={formatCurrency} /></span></div>
-                      )}
-                      
-                      <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">관세</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.tariffAmount} formatter={formatCurrency} /></span></div>
-                      <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">부가가치세</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.vatAmount} formatter={formatCurrency} /></span></div>
-                      <div className="flex justify-between py-2 border-b border-slate-200"><span className="text-gray-600">기타 고정 수수료</span><span className="font-semibold text-gray-800"><AnimatedNumber value={results.docsFee + results.coFee} formatter={formatCurrency} /></span></div>
-                      
-                      {results.costPerItem > 0 && (
-                        <div className="flex justify-between py-2 font-bold"><span className="text-gray-700">개당 최종 원가</span><span className="text-gray-900"><AnimatedNumber value={results.costPerItem} formatter={formatCurrency} /></span></div>
-                      )}
+                  
+                <div className="space-y-1 divide-y divide-slate-200">
+                  <ResultItem 
+                      label="총 상품가" 
+                      value={<AnimatedNumber value={results.totalProductPriceKRW} formatter={formatCurrency} />} 
+                      icon={Icons.Price}
+                  />
+                  <ResultItem 
+                      label="해운비" 
+                      value={<AnimatedNumber value={results.oceanFreightKRW} formatter={formatCurrency} />} 
+                      icon={Icons.Shipping}
+                  />
+                  
+                  {results.commissionAmountKRW > 0 && (
+                      <ResultItem 
+                          label="수수료" 
+                          value={<AnimatedNumber value={results.commissionAmountKRW} formatter={formatCurrency} />} 
+                          icon={Icons.Receipt} 
+                      />
+                  )}
+                  
+                  {results.costPerItem > 0 && (
+                      <ResultItem 
+                          label="개당 최종 원가" 
+                          value={<AnimatedNumber value={results.costPerItem} formatter={formatCurrency} />} 
+                          icon={Icons.PriceTag}
+                      />
+                  )}
+
+                  {/* Tax Group */}
+                  <div>
+                      <div 
+                          onClick={() => setIsTaxesExpanded(!isTaxesExpanded)}
+                          className="flex items-center justify-between py-3 md:cursor-auto cursor-pointer"
+                          role="button"
+                          aria-expanded={isTaxesExpanded}
+                      >
+                          <div className="flex items-center">
+                              <div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-emerald-100">
+                                  {Icons.Tax}
+                              </div>
+                              <span className="ml-4 font-medium text-gray-800">총 세금</span>
+                          </div>
+                          <div className="flex items-center">
+                              <span className="font-semibold text-gray-900">
+                                  <AnimatedNumber value={results.totalTaxes} formatter={formatCurrency} />
+                              </span>
+                              <span className={`ml-2 transform transition-transform duration-200 md:hidden ${isTaxesExpanded ? 'rotate-180' : ''}`}>
+                                  {Icons.ChevronDown}
+                              </span>
+                          </div>
+                      </div>
+                      <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isTaxesExpanded ? 'max-h-40' : 'max-h-0'} md:max-h-40`}>
+                          <ResultItem 
+                              label="관세" 
+                              value={<AnimatedNumber value={results.tariffAmount} formatter={formatCurrency} />} 
+                              icon={Icons.Tariff}
+                              isSub={true}
+                          />
+                          <ResultItem 
+                              label="부가가치세" 
+                              value={<AnimatedNumber value={results.vatAmount} formatter={formatCurrency} />} 
+                              icon={Icons.Vat}
+                              isSub={true}
+                          />
+                      </div>
                   </div>
-                   {/* [삭제됨] Gemini 기능 버튼 섹션 */}
+                  
+                  {/* Fee Group */}
+                  <div>
+                      <div 
+                          onClick={() => setIsFeesExpanded(!isFeesExpanded)}
+                          className="flex items-center justify-between py-3 md:cursor-auto cursor-pointer"
+                          role="button"
+                          aria-expanded={isFeesExpanded}
+                      >
+                          <div className="flex items-center">
+                              <div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-emerald-100">
+                                  {Icons.Fee}
+                              </div>
+                              <span className="ml-4 font-medium text-gray-800">기타 고정 수수료</span>
+                          </div>
+                          <div className="flex items-center">
+                              <span className="font-semibold text-gray-900">
+                                  <AnimatedNumber value={results.docsFee + results.coFee} formatter={formatCurrency} />
+                              </span>
+                              <span className={`ml-2 transform transition-transform duration-200 md:hidden ${isFeesExpanded ? 'rotate-180' : ''}`}>
+                                  {Icons.ChevronDown}
+                              </span>
+                          </div>
+                      </div>
+                      <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isFeesExpanded ? 'max-h-40' : 'max-h-0'} md:max-h-40`}>
+                          <ResultItem 
+                              label="서류비" 
+                              value={<AnimatedNumber value={results.docsFee} formatter={formatCurrency} />} 
+                              icon={Icons.DocsFee}
+                              isSub={true}
+                          />
+                          <ResultItem 
+                              label="CO발급비" 
+                              value={<AnimatedNumber value={results.coFee} formatter={formatCurrency} />} 
+                              icon={Icons.CoFee}
+                              isSub={true}
+                          />
+                      </div>
+                  </div>
                 </div>
+
+                <div className="mt-8 pt-6 border-t border-dashed border-slate-300">
+                  <h3 className="font-semibold text-gray-700 mb-3">참고 정보</h3>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-600">
+                      <div className="flex justify-between"><span className="font-medium text-gray-500">과세표준:</span> <span className="font-mono">{formatCurrency(results.taxableBase)}</span></div>
+                      <div className="flex justify-between"><span className="font-medium text-gray-500">총 상품가(USD):</span> <span className="font-mono">{formatCurrency(results.totalProductPriceUSD, 'USD')}</span></div>
+                      <div className="flex justify-between"><span className="font-medium text-gray-500">총 무게:</span> <span className="font-mono">{formatNumber(results.totalWeight, 'kg')}</span></div>
+                      <div className="flex justify-between"><span className="font-medium text-gray-500">CBM:</span> <span className="font-mono">{formatNumber(results.cbm, '', 4)}</span></div>
+                  </div>
+                </div>
+            </div>
             ) : (
               <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 flex flex-col items-center justify-center text-center">
                   <svg className="w-20 h-20 text-emerald-200 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -352,7 +469,6 @@ const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }
                   <p className="text-gray-500 mt-2">좌측에 정보를 입력하면<br /> 예상 통관 비용이 자동으로 계산됩니다.</p>
               </div>
             )}
-            {/* --- [여기까지 수정됨] --- */}
           </div>
       );
 };
