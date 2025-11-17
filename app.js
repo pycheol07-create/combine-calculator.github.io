@@ -1,27 +1,21 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import ReactDOM from 'react-dom/client';
+// 'import' 구문을 모두 삭제합니다.
+// [수정됨] 모든 React 훅(useState, useEffect 등) 앞에 'React.'를 추가합니다.
 
-// --- 1. 우리가 분리한 파일들 불러오기 ---
-import { ComparisonModal } from './ComparisonModal.js';
-import { ImportCalculator } from './ImportCalculator.js';
-import { CustomsCalculator } from './CustomsCalculator.js';
-import { ShippingCalculator } from './ShippingCalculator.js';
-
-// (참고: InputControl, constants 등은
-//  각 계산기(Calculator) 파일들이 
-//  직접 import 하므로 여기엔 필요 없습니다.)
+// (참고: ComparisonModal, ImportCalculator 등은
+//  index.html에서 이 파일보다 먼저 로드될 것이므로
+//  여기서 바로 사용할 수 있습니다.)
 
 
 // --- 2. From App.tsx ---
 // 유일하게 남은 메인 컴포넌트
 const App = () => {
-    const [activeTabId, setActiveTabId] = useState('import');
-     const [exchangeRate, setExchangeRate] = useState(() => localStorage.getItem('exchangeRate') || '1350');
-    const [comparisonScenarios, setComparisonScenarios] = useState([]);
-    const [isComparisonOpen, setComparisonOpen] = useState(false);
+    const [activeTabId, setActiveTabId] = React.useState('import');
+     const [exchangeRate, setExchangeRate] = React.useState(() => localStorage.getItem('exchangeRate') || '1350');
+    const [comparisonScenarios, setComparisonScenarios] = React.useState([]);
+    const [isComparisonOpen, setIsComparisonOpen] = React.useState(false);
 
-    useEffect(() => { localStorage.setItem('exchangeRate', exchangeRate); }, [exchangeRate]);
-    useEffect(() => { try { const saved = localStorage.getItem('comparisonScenarios'); if(saved) setComparisonScenarios(JSON.parse(saved)); } catch (e) { console.error("Failed to parse scenarios", e) } }, []);
+    React.useEffect(() => { localStorage.setItem('exchangeRate', exchangeRate); }, [exchangeRate]);
+    React.useEffect(() => { try { const saved = localStorage.getItem('comparisonScenarios'); if(saved) setComparisonScenarios(JSON.parse(saved)); } catch (e) { console.error("Failed to parse scenarios", e) } }, []);
     
     const handleSaveCompare = (type, data) => {
         const newScenario = { type, data, id: Date.now() + Math.random() };
@@ -38,15 +32,15 @@ const App = () => {
         setComparisonOpen(false);
     };
 
-    const tabs = useMemo(() => [
+    const tabs = React.useMemo(() => [
         { id: 'import', title: '수입가', component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
         { id: 'customs', title: '통관비', component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} onSaveCompare={handleSaveCompare} /> },
         { id: 'shipping', title: '선적', component: <ShippingCalculator /> },
     ], [exchangeRate, comparisonScenarios]);
 
     // --- Swipe Logic ---
-    const touchStartX = useRef(null); const touchDeltaX = useRef(0); const [isSwiping, setIsSwiping] = useState(false);
-    const activeTabIndex = useMemo(() => tabs.findIndex(tab => tab.id === activeTabId), [tabs, activeTabId]);
+    const touchStartX = React.useRef(null); const touchDeltaX = React.useRef(0); const [isSwiping, setIsSwiping] = React.useState(false);
+    const activeTabIndex = React.useMemo(() => tabs.findIndex(tab => tab.id === activeTabId), [tabs, activeTabId]);
     const handleTouchStart = (e) => { if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName) || e.target.closest('[role="button"]')) return; touchStartX.current = e.touches[0].clientX; touchDeltaX.current = 0; setIsSwiping(true); };
     const handleTouchMove = (e) => { if (!isSwiping || touchStartX.current === null) return; touchDeltaX.current = e.touches[0].clientX - touchStartX.current; };
     const handleTouchEnd = () => { if (!isSwiping) return; const swipeThreshold = 50; if (Math.abs(touchDeltaX.current) > swipeThreshold) { if (touchDeltaX.current < 0) { if (activeTabIndex < tabs.length - 1) setActiveTabId(tabs[activeTabIndex + 1].id); } else { if (activeTabIndex > 0) setActiveTabId(tabs[activeTabIndex - 1].id); } } setIsSwiping(false); touchStartX.current = null; touchDeltaX.current = 0; };
@@ -60,7 +54,7 @@ const App = () => {
 
     return (
         <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
-            <ComparisonModal show={isComparisonOpen} onClose={() => setComparisonOpen(false)} onClear={handleClearCompare} scenarios={comparisonScenarios} />
+            <ComparisonModal show={isComparisonOpen} onClose={() => setIsComparisonOpen(false)} onClear={handleClearCompare} scenarios={comparisonScenarios} />
             <div className="w-full max-w-6xl mx-auto flex flex-col h-full">
                 {/* Header */}
                 <header className="text-center mb-10">
@@ -71,7 +65,7 @@ const App = () => {
                 {/* Compare Button */}
                 {comparisonScenarios.length > 0 && (
                     <div className="fixed bottom-5 right-5 z-40">
-                        <button onClick={() => setComparisonOpen(true)} className="bg-blue-600 text-white font-bold py-3 px-5 rounded-full shadow-lg hover:bg-blue-700 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" /></svg><span>비교하기 ({comparisonScenarios.length}/2)</span></button>
+                        <button onClick={() => setIsComparisonOpen(true)} className="bg-blue-600 text-white font-bold py-3 px-5 rounded-full shadow-lg hover:bg-blue-700 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z" /></svg><span>비교하기 ({comparisonScenarios.length}/2)</span></button>
                     </div>
                 )}
 
@@ -94,4 +88,5 @@ const App = () => {
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error("Could not find root element to mount to");
 const root = ReactDOM.createRoot(rootElement);
+// [수정됨] React.StrictMode 추가
 root.render(<React.StrictMode><App /></React.StrictMode>);

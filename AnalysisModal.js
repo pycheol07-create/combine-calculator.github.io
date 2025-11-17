@@ -1,8 +1,9 @@
-import React from 'react';
-import { PieChart } from './PieChart.js'; // 방금 만든 PieChart.js 불러오기
+// 'import'와 'export' 키워드를 모두 삭제합니다.
+// (PieChart.js가 index.html에서 먼저 로드될 것이므로
+// PieChart 컴포넌트를 바로 사용할 수 있습니다.)
 
 // --- Gemini Feature: Analysis Modal Component ---
-export const AnalysisModal = ({ show, onClose, results, calculatorType }) => {
+const AnalysisModal = ({ show, onClose, results, calculatorType }) => {
     if (!show) return null;
 
     const formatCurrency = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0);
@@ -19,7 +20,7 @@ export const AnalysisModal = ({ show, onClose, results, calculatorType }) => {
     } else if (calculatorType === 'customs') {
         title = '통관비 상세 분석';
         chartData = [
-            { label: '총 상품가', value: results.totalProductPriceKRW, color: '#34d399' },
+            { label: '총 상품가', value: results.totalProductPriceKRW, color: '#34d339' },
             { label: '해운비', value: results.oceanFreightKRW, color: '#60a5fa' },
             { label: '수수료', value: results.commissionAmountKRW, color: '#c084fc' }, // Added commission
             { label: '관세', value: results.tariffAmount, color: '#fbbf24' },

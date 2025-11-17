@@ -1,23 +1,22 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { InputControl } from './InputControl.js';
-import { CONTAINER_DIMENSIONS, PALLET_TYPES } from './constants.js';
+// 'import'와 'export' 키워드를 모두 삭제합니다.
+// [수정됨] 모든 React 훅(useState, useRef 등) 앞에 'React.'를 추가합니다.
 
 // --- From components/ShippingCalculator.tsx ---
-export const ShippingCalculator = () => {
-    const formRef = useRef(null);
-    const [formData, setFormData] = useState({
+const ShippingCalculator = () => {
+    const formRef = React.useRef(null);
+    const [formData, setFormData] = React.useState({
         boxLength: '500',
         boxWidth: '400',
         boxHeight: '300',
         palletType: 'none',
     });
 
-    const handleInputChange = useCallback((e) => {
+    const handleInputChange = React.useCallback((e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     }, []);
 
-    const handleKeyDown = useCallback((e) => {
+    const handleKeyDown = React.useCallback((e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             const form = formRef.current;
@@ -69,7 +68,7 @@ export const ShippingCalculator = () => {
         return { boxesPerPallet: maxBoxes, boxStackHeight: optimalStackHeight };
     };
 
-    const results = useMemo(() => {
+    const results = React.useMemo(() => {
         const boxLength = parseFloat(formData.boxLength) || 0;
         const boxWidth = parseFloat(formData.boxWidth) || 0;
         const boxHeight = parseFloat(formData.boxHeight) || 0;

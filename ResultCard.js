@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { ReceiptIcon } from './Icons.js'; // 방금 만든 Icons.js 파일에서 ReceiptIcon 불러오기
+// 'import'와 'export' 키워드를 모두 삭제합니다.
 
 // --- From components/ResultCard.tsx ---
-export const ResultCard = ({ results }) => {
-  const [isTaxesExpanded, setIsTaxesExpanded] = useState(false);
-  const [isFeesExpanded, setIsFeesExpanded] = useState(false);
+const ResultCard = ({ results }) => {
+  // [수정됨] useState -> React.useState
+  const [isTaxesExpanded, setIsTaxesExpanded] = React.useState(false);
+  const [isFeesExpanded, setIsFeesExpanded] = React.useState(false);
 
   const formatCurrency = (value, currency = 'KRW') => {
     // Ensure value is a number, default to 0 if not

@@ -1,7 +1,7 @@
-import React from 'react';
+// 'import React'와 'export' 키워드를 모두 삭제합니다.
 
 // --- Gemini Feature: Pie Chart Component ---
-export const PieChart = ({ data }) => {
+const PieChart = ({ data }) => {
     const total = data.reduce((sum, item) => sum + item.value, 0);
     if (total === 0) {
         return <div className="flex items-center justify-center h-48 text-gray-500">데이터가 없습니다.</div>;

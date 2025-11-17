@@ -1,32 +1,18 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { InputControl } from './InputControl.js';
-import { LiveRateDisplay } from './LiveRateDisplay.js';
-import { AnalysisModal } from './AnalysisModal.js';
-import { TrendingUpIcon } from './Icons.js';
-import {
-    COMMISSION_RATE_HIGH,
-    COMMISSION_RATE_LOW,
-    CUSTOMS_FEE_RATE_LOW,
-    CUSTOMS_FEE_RATE_HIGH,
-    PACKAGING_BAG_DEFAULT,
-    PACKAGING_BAG_OUTER,
-    PACKAGING_BAG_NONE,
-    LABEL_DEFAULT,
-    LABEL_NONE
-} from './constants.js';
+// 'import'와 'export' 키워드를 모두 삭제합니다.
+// [수정됨] 모든 React 훅(useState, useRef 등) 앞에 'React.'를 추가합니다.
 
 // --- From components/ImportCalculator.tsx ---
-export const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
-    const formRef = useRef(null);
-    const [isAnalysisOpen, setAnalysisOpen] = useState(false);
-    const [saveButtonText, setSaveButtonText] = useState('비교용으로 저장');
-    const [isSaving, setIsSaving] = useState(false);
+const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
+    const formRef = React.useRef(null);
+    const [isAnalysisOpen, setIsAnalysisOpen] = React.useState(false);
+    const [saveButtonText, setSaveButtonText] = React.useState('비교용으로 저장');
+    const [isSaving, setIsSaving] = React.useState(false);
     
-    const [cnyToUsdRate, setCnyToUsdRate] = useState(null);
-    const [liveRates, setLiveRates] = useState({ krw: null, cny: null });
-    const [rateStatus, setRateStatus] = useState('loading');
+    const [cnyToUsdRate, setCnyToUsdRate] = React.useState(null);
+    const [liveRates, setLiveRates] = React.useState({ krw: null, cny: null });
+    const [rateStatus, setRateStatus] = React.useState('loading');
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = React.useState({
         productCost: '10',
         commissionRate: String(COMMISSION_RATE_HIGH),
         customsFeeRate: String(CUSTOMS_FEE_RATE_LOW),
@@ -34,7 +20,7 @@ export const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCom
         label: String(LABEL_DEFAULT),
     });
 
-    useEffect(() => {
+    React.useEffect(() => {
         const fetchRates = async () => {
             setRateStatus('loading');
             try {
@@ -56,12 +42,12 @@ export const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCom
         fetchRates();
     }, []);
 
-    const handleInputChange = useCallback((e) => {
+    const handleInputChange = React.useCallback((e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     }, []);
 
-    const handleKeyDown = useCallback((e) => {
+    const handleKeyDown = React.useCallback((e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
           const form = formRef.current;
@@ -76,7 +62,7 @@ export const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCom
         }
     }, []);
 
-    const results = useMemo(() => {
+    const results = React.useMemo(() => {
         const productCost = parseFloat(formData.productCost) || 0;
         const packagingCost = parseFloat(formData.packagingBag) || 0;
         const labelCost = parseFloat(formData.label) || 0;
@@ -140,7 +126,7 @@ export const ImportCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCom
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
-            <AnalysisModal show={isAnalysisOpen} onClose={() => setAnalysisOpen(false)} results={results} calculatorType="import" />
+            <AnalysisModal show={isAnalysisOpen} onClose={() => setIsAnalysisOpen(false)} results={results} calculatorType="import" />
             <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
                 <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">정보 입력</h2>
                 <div className="space-y-6">

@@ -1,7 +1,7 @@
-import React from 'react';
+// 'import React'와 'export' 키워드를 모두 삭제합니다.
 
 // --- Gemini Feature: Comparison Modal ---
-export const ComparisonModal = ({ show, onClose, onClear, scenarios }) => {
+const ComparisonModal = ({ show, onClose, onClear, scenarios }) => {
     if (!show) return null;
 
     const formatCurrency = (value, currency = 'KRW') => {

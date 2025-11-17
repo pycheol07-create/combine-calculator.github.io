@@ -1,29 +1,18 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { InputControl } from './InputControl.js';
-import { LiveRateDisplay } from './LiveRateDisplay.js';
-import { ResultCard } from './ResultCard.js';
-import { AnalysisModal } from './AnalysisModal.js';
-import { TrendingUpIcon } from './Icons.js';
-import { 
-    DOCS_FEE, 
-    CO_FEE, 
-    OCEAN_FREIGHT_RATE_PER_CBM, 
-    CBM_WEIGHT_DIVISOR, 
-    VAT_RATE 
-} from './constants.js';
+// 'import'와 'export' 키워드를 모두 삭제합니다.
+// [수정됨] 모든 React 훅(useState, useRef 등) 앞에 'React.'를 추가합니다.
 
 // --- From components/CustomsCalculator.tsx ---
-export const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
-      const formRef = useRef(null);
-      const [isAnalysisOpen, setAnalysisOpen] = useState(false);
-      const [saveButtonText, setSaveButtonText] = useState('비교용으로 저장');
-      const [isSaving, setIsSaving] = useState(false);
-      const [calculationMode, setCalculationMode] = useState('product');
+const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCompare }) => {
+      const formRef = React.useRef(null);
+      const [isAnalysisOpen, setIsAnalysisOpen] = React.useState(false);
+      const [saveButtonText, setSaveButtonText] = React.useState('비교용으로 저장');
+      const [isSaving, setIsSaving] = React.useState(false);
+      const [calculationMode, setCalculationMode] = React.useState('product');
       
-      const [liveRates, setLiveRates] = useState({ krw: null, cny: null });
-      const [rateStatus, setRateStatus] = useState('loading');
+      const [liveRates, setLiveRates] = React.useState({ krw: null, cny: null });
+      const [rateStatus, setRateStatus] = React.useState('loading');
       
-      const [formData, setFormData] = useState({
+      const [formData, setFormData] = React.useState({
         productQuantity: '1000',
         unitPrice: '10',
         quantityPerBox: '50',
@@ -38,7 +27,7 @@ export const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCo
         commissionValue: '0', // Stored as string like other inputs
       });
 
-      useEffect(() => {
+      React.useEffect(() => {
         const fetchLiveRates = async () => {
             setRateStatus('loading');
             try {
@@ -59,16 +48,16 @@ export const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCo
         fetchLiveRates();
       }, []);
       
-        const handleInputChange = useCallback((e) => {
+        const handleInputChange = React.useCallback((e) => {
           const { name, value } = e.target;
           setFormData(prev => ({ ...prev, [name]: value }));
         }, []);
 
-        const handleModeChange = useCallback((e) => {
+        const handleModeChange = React.useCallback((e) => {
           setCalculationMode(e.target.value);
         }, []);
       
-        const handleKeyDown = useCallback((e) => {
+        const handleKeyDown = React.useCallback((e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
             const form = formRef.current;
@@ -88,7 +77,7 @@ export const CustomsCalculator = ({ exchangeRate, onExchangeRateChange, onSaveCo
           }
         }, []);
 
-        const results = useMemo(() => {
+        const results = React.useMemo(() => {
           const exchangeRateValue = parseFloat(exchangeRate) || 1;
           const tariffRateValue = parseFloat(formData.tariffRate) / 100;
           const { shippingType, containerCost, commissionType, commissionValue } = formData; // Added commission fields

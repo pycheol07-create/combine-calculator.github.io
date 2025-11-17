@@ -1,7 +1,7 @@
-import React from 'react';
+// 'import React'와 'export' 키워드를 모두 삭제합니다.
 
 // --- From components/InputControl.tsx ---
-export const InputControl = ({ label, name, value, onChange, unit, placeholder, icon, onKeyDown, type = "number" }) => { // Added type prop
+const InputControl = ({ label, name, value, onChange, unit, placeholder, icon, onKeyDown, type = "number" }) => { // Added type prop
   return (
     <div>
       <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
