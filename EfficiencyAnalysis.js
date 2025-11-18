@@ -1,4 +1,4 @@
-// [수정됨] 운송 효율 분석 (PDF 내보내기 기능 추가 + 구간별 최소 선적 단위 적용)
+// [수정됨] 운송 효율 분석 (스크롤 전체 영역 캡처 기능 개선 + 동적 박스 분할)
 
 const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculationMode }) => {
     if (!show) return null;
@@ -9,43 +9,69 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
     const printRef = React.useRef(null);
     const [isGeneratingPdf, setIsGeneratingPdf] = React.useState(false);
 
-    // PDF 다운로드 핸들러
+    // [수정된 부분] PDF 다운로드 핸들러 (스크롤 전체 캡처 로직 적용)
     const handleDownloadPDF = async () => {
         if (!printRef.current) return;
         
         try {
             setIsGeneratingPdf(true);
             
-            // 1. html2canvas로 DOM을 캡처
-            const canvas = await window.html2canvas(printRef.current, {
+            const input = printRef.current;
+
+            // 1. 원본 요소를 깊은 복사(Deep Clone)합니다.
+            const clone = input.cloneNode(true);
+            
+            // 2. 복제본의 스타일을 강제로 수정하여 전체 내용이 보이도록 설정합니다.
+            // - 화면 밖(-10000px)에 배치하여 사용자 눈에는 안 보이게 함
+            // - height, maxHeight 제한을 풀고 overflow를 visible로 하여 스크롤을 없앰
+            Object.assign(clone.style, {
+                position: 'fixed',
+                top: '-10000px',
+                left: '-10000px',
+                width: `${input.offsetWidth}px`, // 원본 너비 유지
+                height: 'auto',
+                maxHeight: 'none',
+                overflow: 'visible',
+                zIndex: '-1000'
+            });
+
+            // 3. 복제본을 DOM(body)에 추가합니다. (html2canvas가 렌더링할 대상이 필요함)
+            document.body.appendChild(clone);
+            
+            // 4. html2canvas로 복제본을 캡처합니다.
+            const canvas = await window.html2canvas(clone, {
                 scale: 2, // 해상도 2배 (선명하게)
-                useCORS: true, // 이미지 크로스오리진 허용
+                useCORS: true,
                 logging: false,
-                backgroundColor: '#ffffff' // 배경 흰색 고정
+                backgroundColor: '#ffffff',
+                windowWidth: clone.scrollWidth, // 전체 스크롤 너비
+                windowHeight: clone.scrollHeight // 전체 스크롤 높이
             });
             
-            // 2. 캔버스를 이미지 데이터로 변환
-            const imgData = canvas.toDataURL('image/png');
+            // 5. 캡처가 끝났으므로 복제본을 제거합니다.
+            document.body.removeChild(clone);
             
-            // 3. jspdf로 PDF 생성
+            // 6. jsPDF로 PDF 생성 및 저장
+            const imgData = canvas.toDataURL('image/png');
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF('p', 'mm', 'a4');
             
-            // A4 크기 계산 (mm 단위)
-            const imgWidth = 210; // A4 너비
-            const pageHeight = 297; // A4 높이
+            const imgWidth = 210; // A4 너비 (mm)
+            const pageHeight = 297; // A4 높이 (mm)
+            
+            // 캔버스 비율에 맞춰 이미지 높이 계산
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
             
             let heightLeft = imgHeight;
             let position = 0;
 
-            // 첫 페이지 추가
+            // 첫 페이지 출력
             pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
             heightLeft -= pageHeight;
 
-            // 내용이 길 경우 페이지 추가 (간단한 처리)
-            while (heightLeft >= 0) {
-                position = heightLeft - imgHeight;
+            // 내용이 A4 한 장을 넘어가면 페이지 추가
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight; // 다음 페이지 시작 위치 조정
                 pdf.addPage();
                 pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
                 heightLeft -= pageHeight;
@@ -57,7 +83,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
             
         } catch (error) {
             console.error("PDF 생성 중 오류 발생:", error);
-            alert("PDF 생성에 실패했습니다.");
+            alert("PDF 생성에 실패했습니다. (관리자에게 문의하세요)");
         } finally {
             setIsGeneratingPdf(false);
         }
@@ -132,7 +158,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         };
     };
 
-    // 데이터 생성
+    // 데이터 생성 (차트/표 용)
     const generateData = () => {
         const baseQty = calculationMode === 'product' 
             ? parseFloat(formData.productQuantity) 
@@ -170,7 +196,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         return data;
     };
 
-    // 분할 운송 시나리오 분석
+    // 분할 운송 시나리오 분석 (구간별 최소 단위 적용)
     const analyzeSplitScenarios = (totalBoxes) => {
         if (!totalBoxes || totalBoxes <= 0) return [];
 
@@ -234,7 +260,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
 
     const formatCurrency = (val) => new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 }).format(val);
 
-    // 렌더링 로직들
+    // 렌더링 로직
     const renderSplitAnalysis = () => {
         if (!splitScenarios || splitScenarios.length === 0) return null;
 
@@ -325,7 +351,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
     return ReactDOM.createPortal(
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={onClose}>
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col animate-fade-in-slide-up max-h-[90vh]" onClick={e => e.stopPropagation()}>
-                {/* Header: PDF 저장 버튼 추가 */}
+                {/* Header: PDF 저장 버튼 */}
                 <div className="flex justify-between items-center border-b p-4 bg-white rounded-t-2xl z-20 flex-shrink-0">
                     <h2 className="text-xl font-bold text-gray-800">📦 운송 효율 분석 리포트</h2>
                     <div className="flex items-center gap-2">
@@ -347,7 +373,6 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
                 
                 {/* Content Area with Ref */}
                 <div ref={printRef} className="p-6 overflow-y-auto custom-scrollbar bg-white flex-grow">
-                    {/* PDF 출력 시 상단 제목이 필요할 수 있으므로 숨겨진 제목 추가 (PDF에만 보임 - html2canvas 특성상 보임) */}
                     {/* 1. 분할 운송 시나리오 분석 */}
                     {renderSplitAnalysis()}
                     
