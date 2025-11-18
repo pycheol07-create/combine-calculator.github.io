@@ -1,4 +1,4 @@
-// [수정됨] 분할 운송 시나리오 전체 분석 (1회 ~ N회 분할 시 비용 비교 및 최적값 추천)
+// [수정됨] 분할 운송 시나리오 분석 (정수 박스 분배 로직 적용)
 
 const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculationMode }) => {
     if (!show) return null;
@@ -17,11 +17,11 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         if (calculationMode === 'product') {
             const unitPrice = parseFloat(formData.unitPrice) || 0;
             const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
-            // targetQty에 따른 박스 수 계산 (올림 처리)
+            // targetQty(상품수량)에 따른 박스 수 계산 (올림 처리)
             currentBoxes = Math.ceil(targetQty / quantityPerBox);
             currentProductPriceUSD = targetQty * unitPrice;
         } else { 
-            // 박스 모드: 박스 수량이 targetQty가 됨 (여기서 targetQty는 박스 수를 의미하게 됨)
+            // 박스 모드: targetQty는 박스 수량 그 자체
             currentBoxes = targetQty;
             
             // 전체 총액에서 1박스당 평균 단가 역산
@@ -66,9 +66,11 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         }
 
         const totalCost = docsFee + coFee + oceanFreightKRW + tariffAmount + vatAmount + commissionAmountKRW;
-        // 개당 원가 (박스 모드일 경우 targetQty는 박스수이므로, 박스당 원가가 됨)
-        const perUnitCost = totalCost / targetQty; 
-        const finalCostPerUnit = (totalProductPriceKRW + totalCost) / targetQty;
+        
+        // 개당 원가 및 최종 원가
+        const validQty = targetQty > 0 ? targetQty : 1;
+        const perUnitCost = totalCost / validQty; 
+        const finalCostPerUnit = (totalProductPriceKRW + totalCost) / validQty;
 
         return {
             qty: targetQty,
@@ -84,7 +86,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         };
     };
 
-    // [일반 분석용] 수량 증감에 따른 데이터 생성
+    // [일반 분석용] 수량 증감에 따른 데이터 생성 (표 하단용)
     const generateData = () => {
         const baseQty = calculationMode === 'product' 
             ? parseFloat(formData.productQuantity) 
@@ -96,7 +98,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
         
         const pointsToCheck = new Set();
-        // 1~10박스
+        // 1~10박스 구간
         for(let i=1; i<=10; i++) pointsToCheck.add(i);
         
         // 현재 수량 기준
@@ -125,7 +127,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         return data;
     };
 
-    // [신규] 분할 운송 시나리오 분석 (1번 ~ N번 나눠서 보낼 때)
+    // [신규] 분할 운송 시나리오 분석 (현실적인 정수 박스 배분)
     const analyzeSplitScenarios = (totalBoxes) => {
         if (!totalBoxes || totalBoxes <= 0) return [];
 
@@ -136,28 +138,50 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         const maxSplits = Math.min(totalBoxes, 50); 
 
         for (let splitCount = 1; splitCount <= maxSplits; splitCount++) {
-            const boxesPerShipment = totalBoxes / splitCount; // 실수 형태 (평균)
+            // 정수 배분 로직 (Integer Distribution)
+            // 예: 11박스를 10번 나눔 -> 몫(base) 1, 나머지(remainder) 1
+            // 결과: 9번은 1박스(base), 1번은 2박스(base+1) 보냄
             
-            // 시뮬레이션을 위한 1회 발송 수량 설정
-            const qtyPerShipment = calculationMode === 'product' 
-                ? boxesPerShipment * quantityPerBox 
-                : boxesPerShipment;
+            const baseBoxes = Math.floor(totalBoxes / splitCount);
+            const remainder = totalBoxes % splitCount;
 
-            // 1회 발송 시 비용 계산
-            const oneShipmentResult = simulateCost(qtyPerShipment);
+            // 박스를 더 쪼갤 수 없는 경우 (분할 횟수가 박스 수보다 클 때) 중단
+            if (baseBoxes === 0) break;
 
-            // 전체 총 비용 = 1회 비용 * 횟수
-            const totalScenarioCost = oneShipmentResult.onlyShippingCost * splitCount;
+            const countCeil = remainder;          // (base + 1) 박스를 보내는 횟수
+            const countFloor = splitCount - remainder; // (base) 박스를 보내는 횟수
+
+            // 비용 계산을 위한 수량(qty) 변환 헬퍼
+            const getQty = (boxes) => calculationMode === 'product' ? boxes * quantityPerBox : boxes;
+
+            let costFloor = 0;
+            let costCeil = 0;
+
+            if (countFloor > 0) {
+                costFloor = simulateCost(getQty(baseBoxes)).onlyShippingCost;
+            }
+            if (countCeil > 0) {
+                // 여기가 "한 박스 이상이면 두 박스"가 적용되는 구간입니다.
+                // 나머지가 발생한 회차는 박스 수가 하나 늘어나서 계산됩니다.
+                costCeil = simulateCost(getQty(baseBoxes + 1)).onlyShippingCost;
+            }
+
+            const totalScenarioCost = (costFloor * countFloor) + (costCeil * countCeil);
+
+            // 1회당 물량 표시 문자열
+            let displayBoxes = `${baseBoxes}박스`;
+            if (remainder > 0) {
+                displayBoxes = `${baseBoxes}~${baseBoxes + 1}박스`;
+            }
 
             scenarios.push({
-                splitCount: splitCount, // 몇 번에 나눠 보내는지
-                boxesPerShipment: (totalBoxes / splitCount).toFixed(1), // 1회당 평균 박스 수
-                oneShipmentCost: oneShipmentResult.onlyShippingCost, // 1회당 통관비
-                totalScenarioCost: totalScenarioCost, // 총 통관비
+                splitCount: splitCount,
+                displayBoxes: displayBoxes, // UI 표시용 (예: "1~2박스")
+                totalScenarioCost: totalScenarioCost,
             });
         }
 
-        // 비용 오름차순 정렬 (가장 저렴한 게 위로)
+        // 비용 오름차순 정렬
         scenarios.sort((a, b) => a.totalScenarioCost - b.totalScenarioCost);
         return scenarios;
     };
@@ -182,12 +206,11 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
     const renderSplitAnalysis = () => {
         if (!splitScenarios || splitScenarios.length === 0) return null;
 
-        const bestScenario = splitScenarios[0]; // 정렬했으므로 첫 번째가 최적
-        const currentScenario = splitScenarios.find(s => s.splitCount === 1); // 1번(한번에) 보내는 경우
+        const bestScenario = splitScenarios[0]; 
+        const currentScenario = splitScenarios.find(s => s.splitCount === 1); 
         
         if (!currentScenario) return null;
 
-        // 현재(1회 발송) 대비 최적 시나리오의 절감액
         const saving = currentScenario.totalScenarioCost - bestScenario.totalScenarioCost;
         const isCurrentBest = bestScenario.splitCount === 1;
 
@@ -231,7 +254,6 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
                             </tr>
                         </thead>
                         <tbody>
-                            {/* 원래 순서(횟수 1, 2, 3...)대로 보여주기 위해 재정렬 */}
                             {[...splitScenarios].sort((a,b) => a.splitCount - b.splitCount).map((row, idx) => {
                                 const isBest = row.splitCount === bestScenario.splitCount;
                                 const diff = row.totalScenarioCost - currentScenario.totalScenarioCost;
@@ -242,7 +264,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
                                             {row.splitCount}회
                                         </td>
                                         <td className="p-2 border-r text-gray-600">
-                                            평균 {row.boxesPerShipment}박스
+                                            {row.displayBoxes}
                                         </td>
                                         <td className={`p-2 border-r font-mono ${isBest ? 'text-blue-600' : 'text-gray-800'}`}>
                                             {formatCurrency(row.totalScenarioCost)}
@@ -259,14 +281,14 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
                         </tbody>
                     </table>
                 </div>
-                <p className="text-xs text-gray-400 mt-2 text-right">* 단순 산술 평균 계산이므로 실제 선적 시 박스 부피/무게에 따라 오차가 있을 수 있습니다.</p>
+                <p className="text-xs text-gray-400 mt-2 text-right">* 각 회차별로 실제 박스 수(정수)에 맞춰 정확히 계산되었습니다.</p>
             </div>
         );
     };
 
     const recommend = () => {
         if (!currentItem) return null;
-        // 기존 '더 모아서 보내면 이득' 로직 유지
+        
         const betterOption = data.find(d => d.boxes > currentItem.boxes && d.finalCostPerUnit < currentItem.finalCostPerUnit);
         if (betterOption) {
             const savePerUnit = currentItem.finalCostPerUnit - betterOption.finalCostPerUnit;
