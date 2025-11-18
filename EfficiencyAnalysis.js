@@ -1,7 +1,3 @@
-{
-type: uploaded file
-fileName: 통합계산기-v.1117-테스트/EfficiencyAnalysis.js
-fullContent:
 // [수정됨] 분할 운송 시나리오 전체 분석 (1회 ~ N회 분할 시 비용 비교 및 최적값 추천)
 
 const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculationMode }) => {
@@ -26,7 +22,6 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
             currentProductPriceUSD = targetQty * unitPrice;
         } else { 
             // 박스 모드: 박스 수량이 targetQty가 됨 (여기서 targetQty는 박스 수를 의미하게 됨)
-            // 박스 모드일 때는 simulateCost 호출 시 targetQty를 박스 수로 넘겨야 함을 주의
             currentBoxes = targetQty;
             
             // 전체 총액에서 1박스당 평균 단가 역산
@@ -46,10 +41,6 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         // 해운비 계산
         let oceanFreightKRW;
         if (formData.shippingType === 'FCL') {
-            // FCL은 컨테이너 단위이므로 분할 시 로직이 복잡해질 수 있으나, 여기서는 단순 비율 혹은 1대 비용으로 가정
-            // 보통 소량 분할 분석은 LCL에서 의미가 큼. 
-            // 여기서는 단순히 입력된 컨테이너 비용을 그대로 사용하되, 물량이 적으면 비율대로 줄어들지 않음(1대값 고정)을 감안해야 하나,
-            // 시뮬레이션 편의상 FCL 분할은 '컨테이너를 꽉 채우지 않아도 비용 발생'으로 처리
              oceanFreightKRW = parseFloat(formData.containerCost) || 0;
         } else {
             oceanFreightKRW = chargeableCbm * oceanFreightPerCbm;
@@ -145,10 +136,6 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         const maxSplits = Math.min(totalBoxes, 50); 
 
         for (let splitCount = 1; splitCount <= maxSplits; splitCount++) {
-            // 전체 박스를 splitCount로 나눔
-            // 예: 20박스를 3번 나눔 -> 6.66... -> 실제로는 7, 7, 6 등으로 나뉨.
-            // 시뮬레이션에서는 '평균 1회 발송량'을 기준으로 비용 계산 후 횟수를 곱함.
-            
             const boxesPerShipment = totalBoxes / splitCount; // 실수 형태 (평균)
             
             // 시뮬레이션을 위한 1회 발송 수량 설정
@@ -160,8 +147,6 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
             const oneShipmentResult = simulateCost(qtyPerShipment);
 
             // 전체 총 비용 = 1회 비용 * 횟수
-            // (주의: 상품가는 고정이므로 제외하고, '추가로 드는 통관비용' 관점에서 봐야 함)
-            // 하지만 사용자에게는 '총 지출 통관비'를 보여주는 게 직관적임.
             const totalScenarioCost = oneShipmentResult.onlyShippingCost * splitCount;
 
             scenarios.push({
@@ -202,7 +187,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         
         if (!currentScenario) return null;
 
-        // 현재(1회 발송) 대비 최적 시나리오의 절감액 (음수면 손해, 양수면 이득)
+        // 현재(1회 발송) 대비 최적 시나리오의 절감액
         const saving = currentScenario.totalScenarioCost - bestScenario.totalScenarioCost;
         const isCurrentBest = bestScenario.splitCount === 1;
 
@@ -361,4 +346,3 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         document.body
     );
 };
-}
