@@ -1,4 +1,4 @@
-// [수정됨] 분할 운송 시나리오 분석 (정수 박스 분배 로직 적용)
+// [수정됨] 분할 운송 시나리오 분석 (물량 구간별 최소 선적 단위 제한 적용)
 
 const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculationMode }) => {
     if (!show) return null;
@@ -127,29 +127,41 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         return data;
     };
 
-    // [신규] 분할 운송 시나리오 분석 (현실적인 정수 박스 배분)
+    // [신규] 분할 운송 시나리오 분석 (구간별 최소 선적 단위 적용)
     const analyzeSplitScenarios = (totalBoxes) => {
         if (!totalBoxes || totalBoxes <= 0) return [];
 
         const scenarios = [];
         const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
         
-        // 최대 50번까지만 계산 (브라우저 성능 보호) 또는 전체 박스 수만큼
-        const maxSplits = Math.min(totalBoxes, 50); 
+        // 1. 최소 선적 단위(minShipmentSize) 결정 로직
+        let minShipmentSize = 1; // 기본: 1박스까지 쪼갬
+        
+        if (totalBoxes >= 20) {
+            minShipmentSize = 10; // 20박스 이상 -> 최소 10박스 단위
+        } else if (totalBoxes >= 10) {
+            minShipmentSize = 5;  // 10박스 이상 -> 최소 5박스 단위
+        }
+
+        // 2. 최대 분할 횟수 계산 (전체 박스 / 최소 단위)
+        // 예: 25박스(min 10) -> 2.5 -> 최대 2회 분할 (12, 13박스)
+        let maxSplits = Math.floor(totalBoxes / minShipmentSize);
+        
+        // 최소 1회는 보장
+        if (maxSplits < 1) maxSplits = 1;
+        
+        // 성능 보호용 하드 리밋 (50회)
+        maxSplits = Math.min(maxSplits, 50);
 
         for (let splitCount = 1; splitCount <= maxSplits; splitCount++) {
             // 정수 배분 로직 (Integer Distribution)
-            // 예: 11박스를 10번 나눔 -> 몫(base) 1, 나머지(remainder) 1
-            // 결과: 9번은 1박스(base), 1번은 2박스(base+1) 보냄
-            
             const baseBoxes = Math.floor(totalBoxes / splitCount);
             const remainder = totalBoxes % splitCount;
 
-            // 박스를 더 쪼갤 수 없는 경우 (분할 횟수가 박스 수보다 클 때) 중단
             if (baseBoxes === 0) break;
 
-            const countCeil = remainder;          // (base + 1) 박스를 보내는 횟수
-            const countFloor = splitCount - remainder; // (base) 박스를 보내는 횟수
+            const countCeil = remainder;          
+            const countFloor = splitCount - remainder;
 
             // 비용 계산을 위한 수량(qty) 변환 헬퍼
             const getQty = (boxes) => calculationMode === 'product' ? boxes * quantityPerBox : boxes;
@@ -161,14 +173,12 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
                 costFloor = simulateCost(getQty(baseBoxes)).onlyShippingCost;
             }
             if (countCeil > 0) {
-                // 여기가 "한 박스 이상이면 두 박스"가 적용되는 구간입니다.
-                // 나머지가 발생한 회차는 박스 수가 하나 늘어나서 계산됩니다.
                 costCeil = simulateCost(getQty(baseBoxes + 1)).onlyShippingCost;
             }
 
             const totalScenarioCost = (costFloor * countFloor) + (costCeil * countCeil);
 
-            // 1회당 물량 표시 문자열
+            // UI 표시용 텍스트
             let displayBoxes = `${baseBoxes}박스`;
             if (remainder > 0) {
                 displayBoxes = `${baseBoxes}~${baseBoxes + 1}박스`;
@@ -176,7 +186,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
 
             scenarios.push({
                 splitCount: splitCount,
-                displayBoxes: displayBoxes, // UI 표시용 (예: "1~2박스")
+                displayBoxes: displayBoxes,
                 totalScenarioCost: totalScenarioCost,
             });
         }
@@ -218,7 +228,9 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
             <div className="mb-8">
                 <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-lg">
                     ✂️ 분할 운송 시나리오 분석
-                    <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">1회 ~ {splitScenarios.length}회 분할 시뮬레이션</span>
+                    <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                        1회 ~ {splitScenarios.length}회 분할 (최소단위 적용)
+                    </span>
                 </h3>
 
                 {/* 추천 요약 박스 */}
@@ -235,7 +247,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
                             </h4>
                             <p className={`text-sm mt-1 ${isCurrentBest ? 'text-emerald-600' : 'text-blue-600'}`}>
                                 {isCurrentBest 
-                                    ? `나눠서 보내면 고정 비용(서류비, 기본운임 등)이 중복 발생하여 비용이 증가합니다.`
+                                    ? `나눠서 보내면 고정 비용이 중복 발생하여 비용이 증가합니다.`
                                     : `총 ${formatCurrency(saving)}원을 절약할 수 있습니다.`}
                             </p>
                         </div>
@@ -281,7 +293,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
                         </tbody>
                     </table>
                 </div>
-                <p className="text-xs text-gray-400 mt-2 text-right">* 각 회차별로 실제 박스 수(정수)에 맞춰 정확히 계산되었습니다.</p>
+                <p className="text-xs text-gray-400 mt-2 text-right">* 10박스 이상은 5박스 단위, 20박스 이상은 10박스 단위까지만 분할 분석됩니다.</p>
             </div>
         );
     };
