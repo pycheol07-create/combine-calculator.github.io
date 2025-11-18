@@ -1,11 +1,15 @@
-// [수정됨] '분할 운송 비교' 기능 추가 (1박스씩 보낼 때 vs 한 번에 보낼 때)
+{
+type: uploaded file
+fileName: 통합계산기-v.1117-테스트/EfficiencyAnalysis.js
+fullContent:
+// [수정됨] 분할 운송 시나리오 전체 분석 (1회 ~ N회 분할 시 비용 비교 및 최적값 추천)
 
 const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculationMode }) => {
     if (!show) return null;
 
     const { settings } = React.useContext(SettingsContext);
 
-    // 비용 시뮬레이션 함수
+    // 비용 시뮬레이션 함수 (단일 건 기준)
     const simulateCost = (targetQty) => {
         const { docsFee, coFee, oceanFreightPerCbm, minCbm, cbmWeightDivisor, vatRate } = settings.common;
         const exchangeRateValue = parseFloat(exchangeRate) || 1;
@@ -17,14 +21,19 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         if (calculationMode === 'product') {
             const unitPrice = parseFloat(formData.unitPrice) || 0;
             const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
+            // targetQty에 따른 박스 수 계산 (올림 처리)
             currentBoxes = Math.ceil(targetQty / quantityPerBox);
             currentProductPriceUSD = targetQty * unitPrice;
         } else { 
-            // 박스 모드: 박스당 단가 추정
+            // 박스 모드: 박스 수량이 targetQty가 됨 (여기서 targetQty는 박스 수를 의미하게 됨)
+            // 박스 모드일 때는 simulateCost 호출 시 targetQty를 박스 수로 넘겨야 함을 주의
             currentBoxes = targetQty;
+            
+            // 전체 총액에서 1박스당 평균 단가 역산
             const totalOriginalPrice = parseFloat(formData.totalProductPrice) || 0;
             const originalBoxes = parseFloat(formData.boxQuantity) || 1;
             const pricePerBox = totalOriginalPrice / originalBoxes;
+            
             currentProductPriceUSD = currentBoxes * pricePerBox;
         }
 
@@ -37,7 +46,11 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         // 해운비 계산
         let oceanFreightKRW;
         if (formData.shippingType === 'FCL') {
-            oceanFreightKRW = parseFloat(formData.containerCost) || 0;
+            // FCL은 컨테이너 단위이므로 분할 시 로직이 복잡해질 수 있으나, 여기서는 단순 비율 혹은 1대 비용으로 가정
+            // 보통 소량 분할 분석은 LCL에서 의미가 큼. 
+            // 여기서는 단순히 입력된 컨테이너 비용을 그대로 사용하되, 물량이 적으면 비율대로 줄어들지 않음(1대값 고정)을 감안해야 하나,
+            // 시뮬레이션 편의상 FCL 분할은 '컨테이너를 꽉 채우지 않아도 비용 발생'으로 처리
+             oceanFreightKRW = parseFloat(formData.containerCost) || 0;
         } else {
             oceanFreightKRW = chargeableCbm * oceanFreightPerCbm;
         }
@@ -62,7 +75,8 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         }
 
         const totalCost = docsFee + coFee + oceanFreightKRW + tariffAmount + vatAmount + commissionAmountKRW;
-        const perUnitCost = totalCost / targetQty;
+        // 개당 원가 (박스 모드일 경우 targetQty는 박스수이므로, 박스당 원가가 됨)
+        const perUnitCost = totalCost / targetQty; 
         const finalCostPerUnit = (totalProductPriceKRW + totalCost) / targetQty;
 
         return {
@@ -73,11 +87,13 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
             oceanFreightKRW,
             totalCost,
             perUnitCost,
-            finalCostPerUnit
+            finalCostPerUnit,
+            // 순수 통관비용 (상품가 제외)
+            onlyShippingCost: totalCost 
         };
     };
 
-    // 데이터 생성
+    // [일반 분석용] 수량 증감에 따른 데이터 생성
     const generateData = () => {
         const baseQty = calculationMode === 'product' 
             ? parseFloat(formData.productQuantity) 
@@ -87,24 +103,21 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
 
         const data = [];
         const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
-        const step = calculationMode === 'product' ? quantityPerBox : 1;
-
-        const pointsToCheck = new Set();
         
-        // 1~10박스 구간 집중 분석
+        const pointsToCheck = new Set();
+        // 1~10박스
         for(let i=1; i<=10; i++) pointsToCheck.add(i);
         
-        // 현재 수량 기준 주변
+        // 현재 수량 기준
         const currentBoxCount = calculationMode === 'product' ? Math.ceil(baseQty / quantityPerBox) : baseQty;
         pointsToCheck.add(currentBoxCount);
         pointsToCheck.add(currentBoxCount + 1);
         pointsToCheck.add(currentBoxCount + 5);
         
-        // 최소 CBM 경계점 (CBM이 1.0을 넘는 지점)
+        // 최소 CBM 경계점
         const weightPerBox = parseFloat(formData.weightPerBox) || 0;
         const cbmWeightDivisor = settings.common.cbmWeightDivisor;
         const minCbm = settings.common.minCbm || 1;
-        
         if (weightPerBox > 0) {
             const boxesForMinCbm = Math.ceil((minCbm * cbmWeightDivisor) / weightPerBox);
             pointsToCheck.add(boxesForMinCbm);
@@ -121,100 +134,187 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         return data;
     };
 
+    // [신규] 분할 운송 시나리오 분석 (1번 ~ N번 나눠서 보낼 때)
+    const analyzeSplitScenarios = (totalBoxes) => {
+        if (!totalBoxes || totalBoxes <= 0) return [];
+
+        const scenarios = [];
+        const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
+        
+        // 최대 50번까지만 계산 (브라우저 성능 보호) 또는 전체 박스 수만큼
+        const maxSplits = Math.min(totalBoxes, 50); 
+
+        for (let splitCount = 1; splitCount <= maxSplits; splitCount++) {
+            // 전체 박스를 splitCount로 나눔
+            // 예: 20박스를 3번 나눔 -> 6.66... -> 실제로는 7, 7, 6 등으로 나뉨.
+            // 시뮬레이션에서는 '평균 1회 발송량'을 기준으로 비용 계산 후 횟수를 곱함.
+            
+            const boxesPerShipment = totalBoxes / splitCount; // 실수 형태 (평균)
+            
+            // 시뮬레이션을 위한 1회 발송 수량 설정
+            const qtyPerShipment = calculationMode === 'product' 
+                ? boxesPerShipment * quantityPerBox 
+                : boxesPerShipment;
+
+            // 1회 발송 시 비용 계산
+            const oneShipmentResult = simulateCost(qtyPerShipment);
+
+            // 전체 총 비용 = 1회 비용 * 횟수
+            // (주의: 상품가는 고정이므로 제외하고, '추가로 드는 통관비용' 관점에서 봐야 함)
+            // 하지만 사용자에게는 '총 지출 통관비'를 보여주는 게 직관적임.
+            const totalScenarioCost = oneShipmentResult.onlyShippingCost * splitCount;
+
+            scenarios.push({
+                splitCount: splitCount, // 몇 번에 나눠 보내는지
+                boxesPerShipment: (totalBoxes / splitCount).toFixed(1), // 1회당 평균 박스 수
+                oneShipmentCost: oneShipmentResult.onlyShippingCost, // 1회당 통관비
+                totalScenarioCost: totalScenarioCost, // 총 통관비
+            });
+        }
+
+        // 비용 오름차순 정렬 (가장 저렴한 게 위로)
+        scenarios.sort((a, b) => a.totalScenarioCost - b.totalScenarioCost);
+        return scenarios;
+    };
+
     const data = generateData();
     
-    // 현재 상태 찾기
-    const currentBoxCount = calculationMode === 'product' ? Math.ceil(parseFloat(formData.productQuantity)/parseFloat(formData.quantityPerBox)) : parseFloat(formData.boxQuantity);
+    // 현재 상태 정보
+    const currentBoxCount = calculationMode === 'product' 
+        ? Math.ceil(parseFloat(formData.productQuantity)/parseFloat(formData.quantityPerBox)) 
+        : parseFloat(formData.boxQuantity);
+    
     const currentItem = data.find(d => d.boxes === currentBoxCount);
     
-    // 1박스(최소 단위) 상태 찾기
-    const minItem = data.find(d => d.boxes === 1);
+    // 분할 분석 데이터 생성
+    const splitScenarios = React.useMemo(() => {
+        return analyzeSplitScenarios(currentBoxCount);
+    }, [currentBoxCount, formData, settings, exchangeRate, calculationMode]);
 
     const formatCurrency = (val) => new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 }).format(val);
 
-    // [추가됨] 분할 운송 비교 분석 렌더링
-    const renderSplitComparison = () => {
-        if (!currentItem || !minItem || currentItem.boxes <= 1) return null;
+    // [UI] 분할 운송 분석 렌더링
+    const renderSplitAnalysis = () => {
+        if (!splitScenarios || splitScenarios.length === 0) return null;
 
-        // 1박스씩 나눠서 보낼 때의 총 예상 비용 (단순 계산: 1박스 비용 * 박스 수)
-        // 주의: 상품가는 변하지 않으므로 '통관비용(totalCost)'만 비교해야 정확함
-        // 하지만 사용자 관점에서는 '총 지출액' 차이가 중요
+        const bestScenario = splitScenarios[0]; // 정렬했으므로 첫 번째가 최적
+        const currentScenario = splitScenarios.find(s => s.splitCount === 1); // 1번(한번에) 보내는 경우
         
-        const costOneByOne = minItem.totalCost * currentItem.boxes; // 통관비 * 박스수
-        const costAtOnce = currentItem.totalCost;
-        const loss = costOneByOne - costAtOnce;
+        if (!currentScenario) return null;
+
+        // 현재(1회 발송) 대비 최적 시나리오의 절감액 (음수면 손해, 양수면 이득)
+        const saving = currentScenario.totalScenarioCost - bestScenario.totalScenarioCost;
+        const isCurrentBest = bestScenario.splitCount === 1;
 
         return (
-            <div className="bg-orange-50 p-4 rounded-lg mb-4 border border-orange-200">
-                <h4 className="font-bold text-orange-800 mb-2 flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                    분할 운송 시 비용 손실 경고
-                </h4>
-                <div className="text-sm text-orange-700 space-y-1">
-                    <p>현재 물량(<span className="font-bold">{currentItem.boxes}박스</span>)을 1박스씩 {currentItem.boxes}번에 나눠서 보낸다면?</p>
-                    <div className="flex justify-between items-center py-1 border-b border-orange-200/50">
-                        <span>한 번에 보낼 때 통관비:</span>
-                        <span className="font-bold text-emerald-600">{formatCurrency(costAtOnce)}원</span>
+            <div className="mb-8">
+                <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-lg">
+                    ✂️ 분할 운송 시나리오 분석
+                    <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">1회 ~ {splitScenarios.length}회 분할 시뮬레이션</span>
+                </h3>
+
+                {/* 추천 요약 박스 */}
+                <div className={`p-4 rounded-xl border-2 mb-4 ${isCurrentBest ? 'bg-emerald-50 border-emerald-100' : 'bg-blue-50 border-blue-100'}`}>
+                    <div className="flex items-start gap-3">
+                        <div className={`text-3xl ${isCurrentBest ? 'text-emerald-500' : 'text-blue-500'}`}>
+                            {isCurrentBest ? '👍' : '💡'}
+                        </div>
+                        <div>
+                            <h4 className={`font-bold text-lg ${isCurrentBest ? 'text-emerald-800' : 'text-blue-800'}`}>
+                                {isCurrentBest 
+                                    ? "한 번에 보내는 것이 가장 저렴합니다!" 
+                                    : `${bestScenario.splitCount}번에 나눠서 보내는 것을 추천합니다!`}
+                            </h4>
+                            <p className={`text-sm mt-1 ${isCurrentBest ? 'text-emerald-600' : 'text-blue-600'}`}>
+                                {isCurrentBest 
+                                    ? `나눠서 보내면 고정 비용(서류비, 기본운임 등)이 중복 발생하여 비용이 증가합니다.`
+                                    : `총 ${formatCurrency(saving)}원을 절약할 수 있습니다.`}
+                            </p>
+                        </div>
                     </div>
-                    <div className="flex justify-between items-center py-1 border-b border-orange-200/50">
-                        <span>나눠서 보낼 때 통관비 합계:</span>
-                        <span className="font-bold text-red-500">{formatCurrency(costOneByOne)}원</span>
-                    </div>
-                    <p className="pt-2 text-right">
-                        총 <span className="text-lg font-extrabold text-red-600">{formatCurrency(loss)}원</span> 손해 발생! 😱
-                    </p>
                 </div>
-                <p className="text-xs text-orange-500 mt-2 text-right">* 기본료(서류비 등)와 최소 CBM 비용 중복 발생 때문입니다.</p>
+
+                {/* 상세 테이블 */}
+                <div className="overflow-hidden border rounded-lg shadow-sm max-h-64 overflow-y-auto">
+                    <table className="w-full text-sm text-center border-collapse">
+                        <thead className="bg-gray-100 text-gray-600 sticky top-0 z-10">
+                            <tr>
+                                <th className="p-2 border-b">횟수</th>
+                                <th className="p-2 border-b">1회당 물량</th>
+                                <th className="p-2 border-b">총 통관비용</th>
+                                <th className="p-2 border-b">비고</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {/* 원래 순서(횟수 1, 2, 3...)대로 보여주기 위해 재정렬 */}
+                            {[...splitScenarios].sort((a,b) => a.splitCount - b.splitCount).map((row, idx) => {
+                                const isBest = row.splitCount === bestScenario.splitCount;
+                                const diff = row.totalScenarioCost - currentScenario.totalScenarioCost;
+                                
+                                return (
+                                    <tr key={idx} className={`${isBest ? 'bg-blue-50 font-bold' : 'hover:bg-gray-50'} border-b last:border-0 transition-colors`}>
+                                        <td className="p-2 border-r text-gray-700">
+                                            {row.splitCount}회
+                                        </td>
+                                        <td className="p-2 border-r text-gray-600">
+                                            평균 {row.boxesPerShipment}박스
+                                        </td>
+                                        <td className={`p-2 border-r font-mono ${isBest ? 'text-blue-600' : 'text-gray-800'}`}>
+                                            {formatCurrency(row.totalScenarioCost)}
+                                        </td>
+                                        <td className="p-2 text-xs">
+                                            {row.splitCount === 1 && <span className="inline-block px-2 py-0.5 rounded bg-gray-200 text-gray-600">기준</span>}
+                                            {isBest && row.splitCount !== 1 && <span className="inline-block px-2 py-0.5 rounded bg-blue-100 text-blue-600">최적 (Min)</span>}
+                                            {!isBest && diff > 0 && <span className="text-red-400">+{formatCurrency(diff)}</span>}
+                                            {!isBest && diff < 0 && <span className="text-blue-400">{formatCurrency(diff)}</span>}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                <p className="text-xs text-gray-400 mt-2 text-right">* 단순 산술 평균 계산이므로 실제 선적 시 박스 부피/무게에 따라 오차가 있을 수 있습니다.</p>
             </div>
         );
     };
 
-    // 추천 로직 (기존 유지 + 보완)
     const recommend = () => {
         if (!currentItem) return null;
-        
-        // 현재보다 더 효율적인 구간 찾기
+        // 기존 '더 모아서 보내면 이득' 로직 유지
         const betterOption = data.find(d => d.boxes > currentItem.boxes && d.finalCostPerUnit < currentItem.finalCostPerUnit);
-        
         if (betterOption) {
             const savePerUnit = currentItem.finalCostPerUnit - betterOption.finalCostPerUnit;
             const addBoxes = betterOption.boxes - currentItem.boxes;
             return (
-                <div className="bg-blue-50 p-4 rounded-lg mb-4 border border-blue-200">
-                    <p className="text-blue-800 font-bold text-lg">💡 더 모아서 보내면 이득!</p>
-                    <p className="text-blue-700 text-sm mt-1">
+                <div className="bg-indigo-50 p-4 rounded-lg mb-8 border border-indigo-200">
+                    <p className="text-indigo-800 font-bold text-lg">💡 더 모아서 보내면 이득!</p>
+                    <p className="text-indigo-700 text-sm mt-1">
                         <span className="font-bold">{addBoxes}박스</span>만 더 추가({betterOption.boxes}박스)하면,<br/>
-                        개당 원가가 <span className="font-bold text-blue-600">{formatCurrency(savePerUnit)}원</span> 더 저렴해집니다.
+                        개당 원가가 <span className="font-bold text-indigo-600">{formatCurrency(savePerUnit)}원</span> 더 저렴해집니다.
                     </p>
                 </div>
             );
         }
-        
-        // 이미 최적 구간이거나 큰 차이가 없을 때
-        return (
-             <div className="bg-emerald-50 p-4 rounded-lg mb-4 border border-emerald-200">
-                <p className="text-emerald-800 font-bold">👍 현재 수량도 충분히 경제적입니다.</p>
-                <p className="text-emerald-600 text-sm">추가 주문에 따른 원가 절감 효과가 크지 않은 구간입니다.</p>
-            </div>
-        );
+        return null;
     };
 
     return ReactDOM.createPortal(
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={onClose}>
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in-slide-up" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center border-b p-4">
-                    <h2 className="text-xl font-bold text-gray-800">📦 운송 효율 분석</h2>
+                <div className="flex justify-between items-center border-b p-4 bg-white sticky top-0 z-20">
+                    <h2 className="text-xl font-bold text-gray-800">📦 운송 효율 분석 리포트</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
                 </div>
                 
-                <div className="p-6 overflow-y-auto">
-                    {/* 1. 분할 운송 비교 (경고) */}
-                    {renderSplitComparison()}
+                <div className="p-6 overflow-y-auto custom-scrollbar">
+                    {/* 1. 분할 운송 시나리오 분석 (New) */}
+                    {renderSplitAnalysis()}
                     
-                    {/* 2. 추가 주문 추천 (팁) */}
+                    {/* 2. 추가 주문 추천 (기존 유지) */}
                     {recommend()}
 
-                    <h3 className="font-bold text-gray-700 mb-3 mt-6">박스 수량별 비용 상세표</h3>
+                    <h3 className="font-bold text-gray-700 mb-3 border-t pt-6">📊 박스 수량별 단가 변화표</h3>
                     <div className="overflow-x-auto border rounded-lg">
                         <table className="w-full text-sm text-center border-collapse">
                             <thead className="bg-gray-100 text-gray-600 sticky top-0">
@@ -230,7 +330,6 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
                                     const isCurrent = row.boxes === currentItem?.boxes;
                                     const isMin = row.boxes === 1;
                                     const minCbmVal = settings.common.minCbm || 1;
-                                    // CBM이 최소 CBM 구간에 있는지 확인 (예: 0.1 ~ 0.9 CBM)
                                     const isUnderMinCbm = row.cbm < minCbmVal; 
                                     
                                     return (
@@ -262,3 +361,4 @@ const EfficiencyAnalysis = ({ show, onClose, formData, exchangeRate, calculation
         document.body
     );
 };
+}
