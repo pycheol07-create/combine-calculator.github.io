@@ -1,21 +1,34 @@
-// [수정됨] 'import' 구문 삭제 및 'React.' 접두사 사용
+// [수정됨] 환율 모드(고정/실시간) 상태 추가 및 로컬 스토리지 연동
 
-// (참고: ComparisonModal, ImportCalculator 등 다른 컴포넌트들은
-//  index.html에서 이 파일보다 먼저 로드되어 전역으로 사용 가능합니다.)
-
-// --- 메인 컴포넌트 ---
 const App = () => {
     const [activeTabId, setActiveTabId] = React.useState('import');
     const [exchangeRate, setExchangeRate] = React.useState(() => localStorage.getItem('exchangeRate') || '1350');
+    // [추가됨] 환율 적용 방식 상태 (기본값: 'fixed')
+    const [exchangeRateMode, setExchangeRateMode] = React.useState(() => localStorage.getItem('exchangeRateMode') || 'fixed');
     const [isAdminOpen, setIsAdminOpen] = React.useState(false);
 
     React.useEffect(() => { localStorage.setItem('exchangeRate', exchangeRate); }, [exchangeRate]);
+    // [추가됨] 환율 모드 변경 시 로컬 스토리지 저장
+    React.useEffect(() => { localStorage.setItem('exchangeRateMode', exchangeRateMode); }, [exchangeRateMode]);
     
+    // [수정됨] 컴포넌트에 exchangeRateMode와 onExchangeRateModeChange props 추가
     const tabs = React.useMemo(() => [
-        { id: 'import', title: '수입가', component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} /> },
-        { id: 'customs', title: '통관비', component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} /> },
-        { id: 'shipping', title: '선적', component: <ShippingCalculator /> },
-    ], [exchangeRate]);
+        { 
+            id: 'import', 
+            title: '수입가', 
+            component: <ImportCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} exchangeRateMode={exchangeRateMode} onExchangeRateModeChange={setExchangeRateMode} /> 
+        },
+        { 
+            id: 'customs', 
+            title: '통관비', 
+            component: <CustomsCalculator exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} exchangeRateMode={exchangeRateMode} onExchangeRateModeChange={setExchangeRateMode} /> 
+        },
+        { 
+            id: 'shipping', 
+            title: '선적', 
+            component: <ShippingCalculator /> 
+        },
+    ], [exchangeRate, exchangeRateMode]); // exchangeRateMode 의존성 추가
 
     // --- Swipe Logic ---
     const touchStartX = React.useRef(null); const touchDeltaX = React.useRef(0); const [isSwiping, setIsSwiping] = React.useState(false);
@@ -25,7 +38,6 @@ const App = () => {
     const handleTouchEnd = () => { if (!isSwiping) return; const swipeThreshold = 50; if (Math.abs(touchDeltaX.current) > swipeThreshold) { if (touchDeltaX.current < 0) { if (activeTabIndex < tabs.length - 1) setActiveTabId(tabs[activeTabIndex + 1].id); } else { if (activeTabIndex > 0) setActiveTabId(tabs[activeTabIndex - 1].id); } } setIsSwiping(false); touchStartX.current = null; touchDeltaX.current = 0; };
     // --- End Swipe Logic ---
 
-    // [중요] 여기가 누락되었던 스타일 변수들입니다!
     const tabStyles = "flex-1 py-3 px-4 text-center font-semibold rounded-t-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 transition-all duration-300";
     const activeTabStyles = "bg-white/80 text-emerald-600 shadow-md";
     const inactiveTabStyles = "bg-white/30 text-slate-600 hover:bg-white/50";
@@ -39,7 +51,6 @@ const App = () => {
             
             <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
                 <div className="w-full max-w-6xl mx-auto flex flex-col h-full relative">
-                    {/* 관리자 설정 버튼 */}
                     <button 
                         onClick={() => setIsAdminOpen(true)} 
                         className="absolute top-0 right-0 p-2 text-gray-400 hover:text-gray-600"
@@ -56,7 +67,6 @@ const App = () => {
                         <p className="mt-2 text-lg text-slate-600">수입에 필요한 비용을 간편하게 계산해보세요.</p>
                     </header>
 
-                    {/* Tabs */}
                     <div className="w-full max-w-4xl mx-auto">
                         <div className="flex mb-[-1px] z-10 relative">
                             {tabs.map(tab => (
@@ -73,7 +83,6 @@ const App = () => {
                         </div>
                     </div>
 
-                    {/* Main Content Area */}
                     <main className="w-full overflow-hidden" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
                         <div className="flex" style={{ transform: transformValue, transition: isSwiping ? 'none' : 'transform 0.4s cubic-bezier(0.4, 0.2, 1)' }}>
                             {tabs.map(tab => (<div key={tab.id} className="w-full flex-shrink-0">{tab.component}</div>))}

@@ -1,15 +1,13 @@
-const ImportCalculator = ({ exchangeRate, onExchangeRateChange }) => {
+// [수정됨] 환율 고정/실시간 토글 UI 및 동적 계산 로직 반영
+
+const ImportCalculator = ({ exchangeRate, onExchangeRateChange, exchangeRateMode, onExchangeRateModeChange }) => {
     const formRef = React.useRef(null);
-    // [수정] SettingsContext 사용
     const { settings } = React.useContext(SettingsContext);
     
     const [cnyToUsdRate, setCnyToUsdRate] = React.useState(null);
     const [liveRates, setLiveRates] = React.useState({ krw: null, cny: null });
     const [rateStatus, setRateStatus] = React.useState('loading');
 
-    // [수정] 초기값 설정을 위해 useEffect 사용 필요할 수도 있으나, 
-    // 여기서는 settings가 로드된 상태라고 가정하고 첫번째 옵션 값들을 기본으로 사용
-    // 안전하게 옵셔널 체이닝 사용
     const [formData, setFormData] = React.useState({
         productCost: '10',
         commissionRate: String(settings.import.commissionRates[0]?.value || 0.035),
@@ -65,8 +63,14 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange }) => {
         const packagingCost = parseFloat(formData.packagingBag) || 0;
         const labelCost = parseFloat(formData.label) || 0;
         const commissionRate = parseFloat(formData.commissionRate) || 0;
+        
+        // [수정됨] 토글 상태에 따라 적용할 환율을 결정합니다.
+        const appliedExchangeRate = exchangeRateMode === 'live' && liveRates.krw 
+            ? liveRates.krw 
+            : (parseFloat(exchangeRate) || 0);
+        
         const customsFeeRate = parseFloat(formData.customsFeeRate) || 0;
-        const exchangeRateValue = parseFloat(exchangeRate) || 0;
+        const exchangeRateValue = appliedExchangeRate;
 
         if (productCost === 0 || !cnyToUsdRate || exchangeRateValue === 0) return null;
 
@@ -81,7 +85,7 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange }) => {
         const finalImportCost = totalCostKRW + customsFeeKRW;
 
         return { baseCostCNY, commissionCNY, totalCostCNY, totalCostUSD, totalCostKRW, customsFeeKRW, finalImportCost };
-    }, [formData, cnyToUsdRate, exchangeRate]);
+    }, [formData, cnyToUsdRate, exchangeRate, exchangeRateMode, liveRates.krw]); // 의존성 배열 업데이트
     
     const CurrencyYenIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 4h4m-5 4h5M5 8h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg>);
     const formatKRW = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0);
@@ -89,7 +93,6 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange }) => {
     const formatCNY = (value) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)} ¥`;
     const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
 
-    // [수정] 동적 옵션 렌더링을 위한 헬퍼 컴포넌트
     const ToggleFieldset = ({ label, name, value, options, onChange }) => (
         <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
@@ -111,18 +114,39 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange }) => {
                 <div className="space-y-6">
                     <InputControl label="상품원가" name="productCost" value={formData.productCost} onChange={handleInputChange} unit="위안화" icon={<CurrencyYenIcon />} onKeyDown={handleKeyDown} />
                     
-                    {/* [수정] settings에서 옵션 가져오기 */}
                     <ToggleFieldset label="수수료" name="commissionRate" value={formData.commissionRate} options={settings.import.commissionRates} onChange={handleInputChange} />
                     <ToggleFieldset label="통관비" name="customsFeeRate" value={formData.customsFeeRate} options={settings.import.customsFeeRates} onChange={handleInputChange} />
                     <ToggleFieldset label="포장봉투" name="packagingBag" value={formData.packagingBag} options={settings.import.packagingOptions} onChange={handleInputChange} />
                     <ToggleFieldset label="라벨" name="label" value={formData.label} options={settings.import.labelOptions} onChange={handleInputChange} />
                     
-                    <div>
-                        <InputControl label="관세청 고시환율" name="exchangeRate" value={exchangeRate} onChange={(e) => onExchangeRateChange(e.target.value)} unit="원-달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">현재 환율 (참고용)</label>
-                        <LiveRateDisplay rates={liveRates} status={rateStatus} />
+                    {/* [추가됨] 환율 적용 방식 UI */}
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <label className="block text-sm font-bold text-gray-800 mb-3">환율 적용 방식</label>
+                        <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 mb-4">
+                            <label className={`relative flex-1 cursor-pointer py-2 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 ${exchangeRateMode === 'fixed' ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
+                                <input type="radio" name="exchangeRateMode" value="fixed" checked={exchangeRateMode === 'fixed'} onChange={() => onExchangeRateModeChange('fixed')} className="sr-only" />
+                                <span>고정환율 (직접입력)</span>
+                            </label>
+                            <label className={`relative flex-1 cursor-pointer py-2 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 ${exchangeRateMode === 'live' ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
+                                <input type="radio" name="exchangeRateMode" value="live" checked={exchangeRateMode === 'live'} onChange={() => onExchangeRateModeChange('live')} className="sr-only" />
+                                <span>실시간환율 (자동)</span>
+                            </label>
+                        </fieldset>
+
+                        {exchangeRateMode === 'fixed' ? (
+                            <div className="space-y-4">
+                                <InputControl label="적용 환율 (USD-KRW)" name="exchangeRate" value={exchangeRate} onChange={(e) => onExchangeRateChange(e.target.value)} unit="원/달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">현재 실시간 환율 (참고용)</label>
+                                    <LiveRateDisplay rates={liveRates} status={rateStatus} />
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                                <label className="block text-sm font-medium text-emerald-700 mb-2">현재 실시간 환율이 자동 적용됩니다</label>
+                                <LiveRateDisplay rates={liveRates} status={rateStatus} />
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
