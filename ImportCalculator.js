@@ -1,4 +1,4 @@
-// [수정됨] 상품원가 기준으로 USD 변환 후, 각 항목별로 지정된 환율을 적용하는 로직 반영
+// [수정됨] 부자재는 원-위안 환율로 직접 변환 후 최종 원가에 합산하도록 분리
 
 const ImportCalculator = ({ exchangeRates, onRateChange }) => {
     const formRef = React.useRef(null);
@@ -56,7 +56,6 @@ const ImportCalculator = ({ exchangeRates, onRateChange }) => {
         }
     }, []);
 
-    // 현재 모드에 따라 계산에 사용될 최종 환율 객체 생성
     const currentRates = React.useMemo(() => {
         if (exchangeRates.mode === 'live' && liveRates.krw && liveRates.cny) {
             return {
@@ -83,30 +82,32 @@ const ImportCalculator = ({ exchangeRates, onRateChange }) => {
 
         if (productCost === 0 || currentRates.usdCny === 0 || currentRates.usdKrw === 0 || currentRates.customs === 0) return null;
 
-        // 1. 상품원가 + 부자재를 합산 (CNY)
-        const baseCostCNY = productCost + packagingCost + labelCost;
+        const subsidiaryCostCNY = packagingCost + labelCost;
+
+        // 1. 상품원가: 위안 -> 달러(USD) -> 원화(KRW) 변환
+        const productCostUSD = productCost * currentRates.usdCny;
+        const productCostKRW = productCostUSD * currentRates.usdKrw;
         
-        // 2. 위안-달러 환율을 적용하여 달러(USD)로 변환
-        const baseCostUSD = baseCostCNY * currentRates.usdCny;
+        // 2. 부자재: 위안 -> 원화(KRW) 직접 변환 (원-위안 환율 적용)
+        const subsidiaryCostKRW = subsidiaryCostCNY * currentRates.cnyKrw;
         
-        // 3. 변환된 달러 금액에 원-달러 환율을 적용하여 한화(KRW) 원가 산출
-        const baseCostKRW = baseCostUSD * currentRates.usdKrw;
-        
-        // 4. 수수료 계산: 상품원가(USD) * 수수료율 한 뒤 원-달러 환율 적용
-        const commissionUSD = baseCostUSD * commissionRate;
+        // 3. 수수료 계산: 상품원가(USD) * 수수료율 -> 원-달러 환율 적용(KRW)
+        const commissionUSD = productCostUSD * commissionRate;
         const commissionKRW = commissionUSD * currentRates.usdKrw;
         
-        // 5. 통관비 계산: 상품원가(USD) * 통관비율 한 뒤 관세청 고시환율 적용
-        const customsFeeUSD = baseCostUSD * customsFeeRate;
+        // 4. 통관비 계산: 상품원가(USD) * 통관비율 -> 관세청 고시환율 적용(KRW)
+        const customsFeeUSD = productCostUSD * customsFeeRate;
         const customsFeeKRW = customsFeeUSD * currentRates.customs;
         
-        // 6. 최종 예상 수입가 = 한화 상품원가 + 수수료(KRW) + 통관비(KRW)
-        const finalImportCost = baseCostKRW + commissionKRW + customsFeeKRW;
+        // 5. 최종 예상 수입가 = 상품원가(KRW) + 부자재(KRW) + 수수료(KRW) + 통관비(KRW)
+        const finalImportCost = productCostKRW + subsidiaryCostKRW + commissionKRW + customsFeeKRW;
 
         return { 
-            baseCostCNY, 
-            baseCostUSD,
-            baseCostKRW,
+            productCostCNY: productCost,
+            subsidiaryCostCNY,
+            productCostUSD,
+            productCostKRW,
+            subsidiaryCostKRW,
             commissionKRW, 
             customsFeeKRW, 
             finalImportCost 
@@ -192,22 +193,30 @@ const ImportCalculator = ({ exchangeRates, onRateChange }) => {
                     </div>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between py-2 border-b border-slate-200">
-                            <span className="text-gray-600">상품원가 + 부자재 (CNY)</span>
-                            <span className="font-semibold text-gray-800"><AnimatedNumber value={results.baseCostCNY} formatter={formatCNY} /></span>
+                            <span className="text-gray-600">상품원가 (CNY)</span>
+                            <span className="font-semibold text-gray-800"><AnimatedNumber value={results.productCostCNY} formatter={formatCNY} /></span>
                         </div>
                         <div className="flex justify-between py-2 border-b border-slate-200">
-                            <span className="text-gray-600">상품원가 + 부자재 (USD) <span className="text-xs text-gray-400 font-normal">위안-달러 적용</span></span>
-                            <span className="font-semibold text-gray-800"><AnimatedNumber value={results.baseCostUSD} formatter={formatUSD} /></span>
+                            <span className="text-gray-600">부자재 (CNY)</span>
+                            <span className="font-semibold text-gray-800"><AnimatedNumber value={results.subsidiaryCostCNY} formatter={formatCNY} /></span>
                         </div>
-                        <div className="flex justify-between py-2 border-b border-slate-200">
-                            <span className="text-gray-600">상품원가 + 부자재 (KRW) <span className="text-xs text-gray-400 font-normal">원-달러 적용</span></span>
-                            <span className="font-semibold text-gray-800"><AnimatedNumber value={results.baseCostKRW} formatter={formatKRW} /></span>
+                        <div className="flex justify-between py-2 border-b border-slate-200 bg-slate-50 rounded-lg px-2">
+                            <span className="text-gray-600">상품원가 (USD) <span className="text-xs text-gray-400 font-normal">위안-달러 적용</span></span>
+                            <span className="font-semibold text-gray-800"><AnimatedNumber value={results.productCostUSD} formatter={formatUSD} /></span>
                         </div>
-                        <div className="flex justify-between py-2 border-b border-slate-200">
+                        <div className="flex justify-between py-2 border-b border-slate-200 px-2">
+                            <span className="text-gray-600">상품원가 (KRW) <span className="text-xs text-gray-400 font-normal">원-달러 적용</span></span>
+                            <span className="font-semibold text-gray-800"><AnimatedNumber value={results.productCostKRW} formatter={formatKRW} /></span>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-slate-200 px-2">
+                            <span className="text-gray-600">부자재 (KRW) <span className="text-xs text-gray-400 font-normal">원-위안 적용</span></span>
+                            <span className="font-semibold text-gray-800"><AnimatedNumber value={results.subsidiaryCostKRW} formatter={formatKRW} /></span>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-slate-200 px-2">
                             <span className="text-gray-600">수수료 (KRW) <span className="text-xs text-gray-400 font-normal">원-달러 적용</span></span>
                             <span className="font-semibold text-gray-800"><AnimatedNumber value={results.commissionKRW} formatter={formatKRW} /></span>
                         </div>
-                        <div className="flex justify-between py-2">
+                        <div className="flex justify-between py-2 px-2">
                             <span className="text-gray-600">통관비 (KRW) <span className="text-xs text-gray-400 font-normal">고시환율 적용</span></span>
                             <span className="font-semibold text-gray-800"><AnimatedNumber value={results.customsFeeKRW} formatter={formatKRW} /></span>
                         </div>
