@@ -1,10 +1,9 @@
-// [수정됨] 환율 고정/실시간 토글 UI 및 동적 계산 로직 반영
+// [수정됨] 고정환율에서 4개 항목을 수동 설정하고 계산식에 정확히 매핑
 
-const ImportCalculator = ({ exchangeRate, onExchangeRateChange, exchangeRateMode, onExchangeRateModeChange }) => {
+const ImportCalculator = ({ exchangeRates, onRateChange }) => {
     const formRef = React.useRef(null);
     const { settings } = React.useContext(SettingsContext);
     
-    const [cnyToUsdRate, setCnyToUsdRate] = React.useState(null);
     const [liveRates, setLiveRates] = React.useState({ krw: null, cny: null });
     const [rateStatus, setRateStatus] = React.useState('loading');
 
@@ -25,7 +24,6 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange, exchangeRateMode
                 const data = await response.json();
                 if (data && data.rates && data.rates.KRW && data.rates.CNY) {
                     setLiveRates({ krw: data.rates.KRW, cny: data.rates.CNY });
-                    setCnyToUsdRate(1 / data.rates.CNY);
                     setRateStatus('success');
                 } else {
                     throw new Error('Invalid API response format');
@@ -58,34 +56,51 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange, exchangeRateMode
         }
     }, []);
 
+    // 현재 모드에 따라 계산에 사용될 최종 환율 객체 생성
+    const currentRates = React.useMemo(() => {
+        if (exchangeRates.mode === 'live' && liveRates.krw && liveRates.cny) {
+            return {
+                customs: parseFloat(exchangeRates.customs) || 0,
+                usdKrw: liveRates.krw,
+                cnyKrw: liveRates.krw / liveRates.cny,
+                usdCny: 1 / liveRates.cny
+            };
+        }
+        return {
+            customs: parseFloat(exchangeRates.customs) || 0,
+            usdKrw: parseFloat(exchangeRates.usdKrw) || 0,
+            cnyKrw: parseFloat(exchangeRates.cnyKrw) || 0,
+            usdCny: parseFloat(exchangeRates.usdCny) || 0
+        };
+    }, [exchangeRates, liveRates]);
+
     const results = React.useMemo(() => {
         const productCost = parseFloat(formData.productCost) || 0;
         const packagingCost = parseFloat(formData.packagingBag) || 0;
         const labelCost = parseFloat(formData.label) || 0;
         const commissionRate = parseFloat(formData.commissionRate) || 0;
-        
-        // [수정됨] 토글 상태에 따라 적용할 환율을 결정합니다.
-        const appliedExchangeRate = exchangeRateMode === 'live' && liveRates.krw 
-            ? liveRates.krw 
-            : (parseFloat(exchangeRate) || 0);
-        
         const customsFeeRate = parseFloat(formData.customsFeeRate) || 0;
-        const exchangeRateValue = appliedExchangeRate;
 
-        if (productCost === 0 || !cnyToUsdRate || exchangeRateValue === 0) return null;
+        if (productCost === 0 || currentRates.usdCny === 0 || currentRates.customs === 0) return null;
 
         const baseCostCNY = productCost + packagingCost + labelCost;
         const commissionCNY = baseCostCNY * commissionRate;
         const totalCostCNY = baseCostCNY + commissionCNY;
 
-        const totalCostUSD = totalCostCNY * cnyToUsdRate;
-        const totalCostKRW = totalCostUSD * exchangeRateValue;
+        // 위안-달러 환율 적용
+        const totalCostUSD = totalCostCNY * currentRates.usdCny;
         
-        const customsFeeKRW = totalCostKRW * customsFeeRate;
+        // 원-위안 환율 적용 (실제 중국 결제 기준)
+        const totalCostKRW = totalCostCNY * currentRates.cnyKrw;
+        
+        // 통관 세금/수수료는 관세청 고시환율을 기반으로 과세표준(KRW)을 구한 뒤 산정됨
+        const customsTaxableKRW = totalCostUSD * currentRates.customs;
+        const customsFeeKRW = customsTaxableKRW * customsFeeRate;
+        
         const finalImportCost = totalCostKRW + customsFeeKRW;
 
         return { baseCostCNY, commissionCNY, totalCostCNY, totalCostUSD, totalCostKRW, customsFeeKRW, finalImportCost };
-    }, [formData, cnyToUsdRate, exchangeRate, exchangeRateMode, liveRates.krw]); // 의존성 배열 업데이트
+    }, [formData, currentRates]);
     
     const CurrencyYenIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 4h4m-5 4h5M5 8h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg>);
     const formatKRW = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0);
@@ -119,34 +134,39 @@ const ImportCalculator = ({ exchangeRate, onExchangeRateChange, exchangeRateMode
                     <ToggleFieldset label="포장봉투" name="packagingBag" value={formData.packagingBag} options={settings.import.packagingOptions} onChange={handleInputChange} />
                     <ToggleFieldset label="라벨" name="label" value={formData.label} options={settings.import.labelOptions} onChange={handleInputChange} />
                     
-                    {/* [추가됨] 환율 적용 방식 UI */}
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                         <label className="block text-sm font-bold text-gray-800 mb-3">환율 적용 방식</label>
                         <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 mb-4">
-                            <label className={`relative flex-1 cursor-pointer py-2 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 ${exchangeRateMode === 'fixed' ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                                <input type="radio" name="exchangeRateMode" value="fixed" checked={exchangeRateMode === 'fixed'} onChange={() => onExchangeRateModeChange('fixed')} className="sr-only" />
+                            <label className={`relative flex-1 cursor-pointer py-2 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 ${exchangeRates.mode === 'fixed' ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
+                                <input type="radio" name="exchangeRateMode" value="fixed" checked={exchangeRates.mode === 'fixed'} onChange={() => onRateChange('mode', 'fixed')} className="sr-only" />
                                 <span>고정환율 (직접입력)</span>
                             </label>
-                            <label className={`relative flex-1 cursor-pointer py-2 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 ${exchangeRateMode === 'live' ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                                <input type="radio" name="exchangeRateMode" value="live" checked={exchangeRateMode === 'live'} onChange={() => onExchangeRateModeChange('live')} className="sr-only" />
+                            <label className={`relative flex-1 cursor-pointer py-2 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 ${exchangeRates.mode === 'live' ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
+                                <input type="radio" name="exchangeRateMode" value="live" checked={exchangeRates.mode === 'live'} onChange={() => onRateChange('mode', 'live')} className="sr-only" />
                                 <span>실시간환율 (자동)</span>
                             </label>
                         </fieldset>
 
-                        {exchangeRateMode === 'fixed' ? (
-                            <div className="space-y-4">
-                                <InputControl label="적용 환율 (USD-KRW)" name="exchangeRate" value={exchangeRate} onChange={(e) => onExchangeRateChange(e.target.value)} unit="원/달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
+                        <div className="space-y-4">
+                            <InputControl label="관세청 고시환율" name="customs" value={exchangeRates.customs} onChange={(e) => onRateChange('customs', e.target.value)} unit="원/달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
+                            
+                            {exchangeRates.mode === 'fixed' ? (
+                                <>
+                                    <InputControl label="원-달러 환율" name="usdKrw" value={exchangeRates.usdKrw} onChange={(e) => onRateChange('usdKrw', e.target.value)} unit="원/달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
+                                    <InputControl label="원-위안 환율" name="cnyKrw" value={exchangeRates.cnyKrw} onChange={(e) => onRateChange('cnyKrw', e.target.value)} unit="원/위안" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
+                                    <InputControl label="위안-달러 환율" name="usdCny" value={exchangeRates.usdCny} onChange={(e) => onRateChange('usdCny', e.target.value)} unit="달러/위안" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">현재 실시간 환율 (참고용)</label>
+                                        <LiveRateDisplay rates={liveRates} status={rateStatus} />
+                                    </div>
+                                </>
+                            ) : (
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">현재 실시간 환율 (참고용)</label>
+                                    <label className="block text-sm font-medium text-emerald-700 mb-2">실시간 환율 자동 적용</label>
                                     <LiveRateDisplay rates={liveRates} status={rateStatus} />
                                 </div>
-                            </div>
-                        ) : (
-                            <div>
-                                <label className="block text-sm font-medium text-emerald-700 mb-2">현재 실시간 환율이 자동 적용됩니다</label>
-                                <LiveRateDisplay rates={liveRates} status={rateStatus} />
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
