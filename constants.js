@@ -28,6 +28,9 @@ const DEFAULT_SETTINGS = {
         ]
     },
     customs: {
+        defaultUnitPrice: 10,
+        defaultQuantityPerBox: 50,
+        defaultWeightPerBox: 12,
         tariffRates: [
             { label: '8%', value: 8 },
             { label: '0%', value: 0 },

@@ -12,19 +12,29 @@ const CustomsCalculator = ({ exchangeRates, onRateChange }) => {
       
       const [isAnalysisOpen, setIsAnalysisOpen] = React.useState(false);
 
-      const [formData, setFormData] = React.useState({
+      const [formData, setFormData] = React.useState(() => ({
         productQuantity: '1000',
-        unitPrice: '10',
-        quantityPerBox: '50',
+        unitPrice: String(settings.customs.defaultUnitPrice ?? 10),
+        quantityPerBox: String(settings.customs.defaultQuantityPerBox ?? 50),
         boxQuantity: '',
         totalProductPrice: '',
-        weightPerBox: '12',
+        weightPerBox: String(settings.customs.defaultWeightPerBox ?? 12),
         tariffRate: '8',
         shippingType: 'LCL',
         containerCost: '',
         commissionType: 'percentage',
         commissionValue: '0',
-      });
+      }));
+
+      // 설정관리에서 기본값이 바뀌면 입력 필드에 새 기본값을 반영합니다.
+      React.useEffect(() => {
+        setFormData(prev => ({
+          ...prev,
+          unitPrice: String(settings.customs.defaultUnitPrice ?? 10),
+          quantityPerBox: String(settings.customs.defaultQuantityPerBox ?? 50),
+          weightPerBox: String(settings.customs.defaultWeightPerBox ?? 12),
+        }));
+      }, [settings.customs.defaultUnitPrice, settings.customs.defaultQuantityPerBox, settings.customs.defaultWeightPerBox]);
 
       React.useEffect(() => {
         const fetchLiveRates = async () => {

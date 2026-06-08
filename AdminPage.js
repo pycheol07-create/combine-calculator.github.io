@@ -134,6 +134,11 @@ const AdminPage = ({ onClose }) => {
 
                     {activeTab === 'customs' && (
                         <div>
+                            <SectionTitle title="통관비 계산기 기본값" />
+                            <InputRow label="상품 단가 (기본)" value={localSettings.customs.defaultUnitPrice} onChange={v => handleNumberChange('customs', 'defaultUnitPrice', v)} unit="USD/개" />
+                            <InputRow label="박스당 수량 (기본)" value={localSettings.customs.defaultQuantityPerBox} onChange={v => handleNumberChange('customs', 'defaultQuantityPerBox', v)} unit="개/박스" />
+                            <InputRow label="박스당 무게 (기본)" value={localSettings.customs.defaultWeightPerBox} onChange={v => handleNumberChange('customs', 'defaultWeightPerBox', v)} unit="kg/박스" />
+
                             <SectionTitle title="통관비 계산기 옵션" />
                             <ArrayEditor title="관세율 옵션" data={localSettings.customs.tariffRates} category="customs" arrayKey="tariffRates" template={{label: '새 옵션', value: 0}} />
                             <div className="p-4 bg-yellow-50 text-yellow-800 text-sm rounded mb-4">
