@@ -267,7 +267,15 @@ const CustomsCalculator = ({ exchangeRates, onRateChange }) => {
                     </fieldset>
 
                     <div className="space-y-4">
-                        <InputControl label="관세청 고시환율 (세금용)" name="customs" value={exchangeRates.customs} onChange={(e) => onRateChange('customs', e.target.value)} unit="원/달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
+                        <div>
+                            <InputControl label="관세청 고시환율 (세금용)" name="customs" value={exchangeRates.customs} onChange={(e) => onRateChange('customs', e.target.value)} unit="원/달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} />
+                            <p className="mt-2 text-xs text-gray-500 flex items-center flex-wrap gap-1">
+                                <span>※ 당일 고시환율을 확인 후 입력하세요.</span>
+                                <a href="https://unipass.customs.go.kr/csp/index.do" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 underline font-medium">
+                                    관세청 UNI-PASS 바로가기 →
+                                </a>
+                            </p>
+                        </div>
                         
                         {exchangeRates.mode === 'fixed' ? (
                             <>
