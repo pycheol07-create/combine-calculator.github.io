@@ -14,9 +14,12 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
     };
     const today = toDateStr(new Date());
 
+    const [calculationMode, setCalculationMode] = React.useState('quantity'); // 'quantity' | 'amount'
+
     const [formData, setFormData] = React.useState(() => ({
-        // 예상 수량 & 관세율 (통관비 자동 산출용)
+        // 상품수량 / 상품금액(USD) & 관세율 (통관비 자동 산출용)
         quantity: '1000',
+        totalAmountUSD: '10000',
         tariffRate: '8',
 
         // 창고료 섹션
@@ -86,13 +89,21 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
     };
 
     const results = React.useMemo(() => {
-        const quantity = parseFloat(formData.quantity) || 0;
         const tariffRateValue = (parseFloat(formData.tariffRate) || 0) / 100;
 
         // settings.customs 기본값 활용 (통관비 계산기와 동일한 defaults)
         const unitPriceUSD = parseFloat(settings.customs?.defaultUnitPrice ?? 10);
         const quantityPerBox = parseFloat(settings.customs?.defaultQuantityPerBox ?? 50) || 1;
         const weightPerBox = parseFloat(settings.customs?.defaultWeightPerBox ?? 12);
+
+        // 계산 기준에 따라 수량 결정 (금액 기준일 경우 평균 단가로 역산)
+        let quantity = 0;
+        if (calculationMode === 'quantity') {
+            quantity = parseFloat(formData.quantity) || 0;
+        } else {
+            const amountUSD = parseFloat(formData.totalAmountUSD) || 0;
+            quantity = unitPriceUSD > 0 ? amountUSD / unitPriceUSD : 0;
+        }
 
         // settings.common 기본값
         const cbmWeightDivisor = parseFloat(settings.common?.cbmWeightDivisor ?? 250);
@@ -141,17 +152,19 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
         const grandTotal = warehouseFeeTotal + surchargeTotal;
 
         return {
-            totalBoxes, cbm, tariff, vat, customsFee,
+            derivedQuantity: quantity, totalBoxes, cbm, tariff, vat, customsFee,
             totalStayDays, storageDays, warehouseFeeTotal, freeUntil,
             paymentDueDate, delayDays, surchargeAmount, lateInterest, surchargeTotal,
             grandTotal,
         };
-    }, [formData, settings, exchangeRates]);
+    }, [formData, calculationMode, settings, exchangeRates]);
 
     const formatKRW = (v) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(v || 0);
     const formatDays = (v) => `${new Intl.NumberFormat('ko-KR').format(v || 0)} 일`;
     const formatCBM = (v) => `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 3 }).format(v || 0)} ㎥`;
     const formatBoxes = (v) => `${new Intl.NumberFormat('ko-KR').format(v || 0)} 박스`;
+    const formatQty = (v) => `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(v || 0)} 개`;
+    const formatUSD = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(v || 0);
 
     const CalendarIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>);
     const CurrencyWonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7l4 8 4-8M6 12h12m-12 3h12" /></svg>);
@@ -169,13 +182,40 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
     const tariffOptions = settings.customs?.tariffRates || [
         { label: '8%', value: 8 }, { label: '0%', value: 0 }, { label: '13%', value: 13 }
     ];
+    const modeOptions = [
+        { label: '상품수량 기준', value: 'quantity' },
+        { label: '상품금액 기준', value: 'amount' },
+    ];
+    const avgUnitPrice = parseFloat(settings.customs?.defaultUnitPrice ?? 10);
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
             <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">상품수량 입력</h2>
+                <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">기본 정보 입력</h2>
                 <div className="space-y-6">
-                    <InputControl label="상품수량" name="quantity" value={formData.quantity} onChange={handleInputChange} unit="개" icon={<CalcIcon />} onKeyDown={handleKeyDown} placeholder="예: 1000" />
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">계산 기준</label>
+                        <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60">
+                            {modeOptions.map(option => (
+                                <label key={option.value} className={`relative flex-1 cursor-pointer py-2.5 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${calculationMode === option.value ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
+                                    <input type="radio" name="calculationMode" value={option.value} checked={calculationMode === option.value} onChange={(e) => setCalculationMode(e.target.value)} className="sr-only" />
+                                    <span>{option.label}</span>
+                                </label>
+                            ))}
+                        </fieldset>
+                    </div>
+
+                    {calculationMode === 'quantity' ? (
+                        <InputControl label="상품수량" name="quantity" value={formData.quantity} onChange={handleInputChange} unit="개" icon={<CalcIcon />} onKeyDown={handleKeyDown} placeholder="예: 1000" />
+                    ) : (
+                        <>
+                            <InputControl label="상품금액" name="totalAmountUSD" value={formData.totalAmountUSD} onChange={handleInputChange} unit="USD" icon={<CurrencyWonIcon />} onKeyDown={handleKeyDown} placeholder="예: 10000" />
+                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+                                <span>평균 상품단가 (설정관리 기준)</span>
+                                <span className="font-semibold text-slate-800">{formatUSD(avgUnitPrice)} / 개</span>
+                            </div>
+                        </>
+                    )}
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">입항일</label>
@@ -233,6 +273,9 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                     <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200">
                         <h3 className="font-bold text-blue-900 mb-2">자동 산출값</h3>
                         <div className="divide-y divide-blue-100">
+                            {calculationMode === 'amount' && (
+                                <ResultRow label="상품수량 (금액÷단가)" value={formatQty(results.derivedQuantity)} isSub />
+                            )}
                             <ResultRow label="박스 수량" value={formatBoxes(results.totalBoxes)} isSub />
                             <ResultRow label="CBM" value={formatCBM(results.cbm)} isSub />
                             <ResultRow label={`관세 (${formData.tariffRate}%)`} value={formatKRW(results.tariff)} isSub />
