@@ -48,7 +48,7 @@ const App = () => {
         {
             id: 'warehouse',
             title: '창고료&가산세',
-            component: <WarehouseFeeCalculator />
+            component: <WarehouseFeeCalculator exchangeRates={exchangeRates} />
         },
     ], [exchangeRates]);
 
