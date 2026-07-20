@@ -40,10 +40,15 @@ const App = () => {
             title: '통관비', 
             component: <CustomsCalculator exchangeRates={exchangeRates} onRateChange={handleRateChange} /> 
         },
-        { 
-            id: 'shipping', 
-            title: '선적', 
-            component: <ShippingCalculator /> 
+        {
+            id: 'shipping',
+            title: '선적',
+            component: <ShippingCalculator />
+        },
+        {
+            id: 'warehouse',
+            title: '창고료&가산세',
+            component: <WarehouseFeeCalculator />
         },
     ], [exchangeRates]);
 

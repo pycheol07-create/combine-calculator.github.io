@@ -100,9 +100,9 @@ const AdminPage = ({ onClose }) => {
                 {/* Content */}
                 <div className="p-6 pb-20">
                     <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                        {['common', 'import', 'customs', 'shipping'].map(tab => (
+                        {['common', 'import', 'customs', 'shipping', 'warehouse'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${activeTab === tab ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                                {tab === 'common' ? '기본 수수료' : tab === 'import' ? '수입가 옵션' : tab === 'customs' ? '통관비 옵션' : '선적 옵션'}
+                                {tab === 'common' ? '기본 수수료' : tab === 'import' ? '수입가 옵션' : tab === 'customs' ? '통관비 옵션' : tab === 'shipping' ? '선적 옵션' : '창고료&가산세'}
                             </button>
                         ))}
                     </div>
@@ -147,6 +147,17 @@ const AdminPage = ({ onClose }) => {
                         </div>
                     )}
                     
+                    {activeTab === 'warehouse' && (
+                        <div>
+                            <SectionTitle title="창고료 & 가산세 기본값" />
+                            <InputRow label="창고료 단가" value={localSettings.warehouse?.ratePerCBMPerDay ?? 1200} onChange={v => handleNumberChange('warehouse', 'ratePerCBMPerDay', v)} unit="원/CBM/일" />
+                            <InputRow label="무료보관일수" value={localSettings.warehouse?.freeDays ?? 14} onChange={v => handleNumberChange('warehouse', 'freeDays', v)} unit="일" />
+                            <InputRow label="가산세율 (0.03 = 3%)" value={localSettings.warehouse?.surchargeRate ?? 0.03} onChange={v => handleNumberChange('warehouse', 'surchargeRate', v)} unit="" />
+                            <InputRow label="납부마감기한 (입항일+N)" value={localSettings.warehouse?.paymentDueDays ?? 25} onChange={v => handleNumberChange('warehouse', 'paymentDueDays', v)} unit="일" />
+                            <InputRow label="일 지연이자율 (0.00025 = 0.025%)" value={localSettings.warehouse?.dailyInterestRate ?? 0.00025} onChange={v => handleNumberChange('warehouse', 'dailyInterestRate', v)} unit="" />
+                        </div>
+                    )}
+
                     {activeTab === 'shipping' && (
                          <div>
                             <SectionTitle title="파레트 규격" />
