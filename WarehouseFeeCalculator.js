@@ -133,8 +133,9 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
         const dailyInterestRate = (parseFloat(formData.dailyInterestRate) || 0) / 100;
         const paymentDueDate = addDays(formData.arrivalDate, paymentDueDays);
         const delayDays = Math.max(0, daysBetween(paymentDueDate, formData.clearanceDate));
-        const surchargeAmount = customsFee * surchargeRate;
-        const lateInterest = customsFee * delayDays * dailyInterestRate;
+        // 지연일수가 0이면 가산세·이자 모두 미부과 (마감기한 내 납부)
+        const surchargeAmount = delayDays > 0 ? customsFee * surchargeRate : 0;
+        const lateInterest = delayDays > 0 ? customsFee * delayDays * dailyInterestRate : 0;
         const surchargeTotal = surchargeAmount + lateInterest;
 
         const grandTotal = warehouseFeeTotal + surchargeTotal;
@@ -172,9 +173,24 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
             <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">예상 수량 입력</h2>
+                <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">상품수량 입력</h2>
                 <div className="space-y-6">
-                    <InputControl label="예상 수량" name="quantity" value={formData.quantity} onChange={handleInputChange} unit="개" icon={<CalcIcon />} onKeyDown={handleKeyDown} placeholder="예: 1000" />
+                    <InputControl label="상품수량" name="quantity" value={formData.quantity} onChange={handleInputChange} unit="개" icon={<CalcIcon />} onKeyDown={handleKeyDown} placeholder="예: 1000" />
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">입항일</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><CalendarIcon /></div>
+                            <input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} onKeyDown={handleKeyDown} className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 text-gray-900 bg-white" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">통관일</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><CalendarIcon /></div>
+                            <input type="date" name="clearanceDate" value={formData.clearanceDate} onChange={handleInputChange} onKeyDown={handleKeyDown} className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 text-gray-900 bg-white" />
+                        </div>
+                    </div>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">관세율</label>
@@ -196,20 +212,6 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                 <h2 className="text-2xl font-bold text-gray-800 mb-6 mt-10 border-b border-slate-200 pb-4">보세창고료 입력</h2>
                 <div className="space-y-6">
                     <InputControl label="창고료 단가" name="warehouseRate" value={formData.warehouseRate} onChange={handleInputChange} unit="원/CBM/일" icon={<CurrencyWonIcon />} onKeyDown={handleKeyDown} />
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">입항일</label>
-                        <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><CalendarIcon /></div>
-                            <input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} onKeyDown={handleKeyDown} className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 text-gray-900 bg-white" />
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">통관일</label>
-                        <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><CalendarIcon /></div>
-                            <input type="date" name="clearanceDate" value={formData.clearanceDate} onChange={handleInputChange} onKeyDown={handleKeyDown} className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 text-gray-900 bg-white" />
-                        </div>
-                    </div>
                     <InputControl label="무료보관일수" name="freeDays" value={formData.freeDays} onChange={handleInputChange} unit="일" icon={<HashIcon />} onKeyDown={handleKeyDown} />
                 </div>
 
