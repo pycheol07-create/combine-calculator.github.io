@@ -18,7 +18,7 @@ const WarehouseFeeCalculator = () => {
         cbm: '10.23',
         arrivalDate: today,
         clearanceDate: today,
-        freeDays: String(settings.warehouse?.freeDays ?? 14),
+        freeDays: String(settings.warehouse?.freeDays ?? 7),
 
         customsFee: '',
         surchargeRate: String((settings.warehouse?.surchargeRate ?? 0.03) * 100),
@@ -31,7 +31,7 @@ const WarehouseFeeCalculator = () => {
         setFormData(prev => ({
             ...prev,
             warehouseRate: String(settings.warehouse?.ratePerCBMPerDay ?? 1200),
-            freeDays: String(settings.warehouse?.freeDays ?? 14),
+            freeDays: String(settings.warehouse?.freeDays ?? 7),
             surchargeRate: String((settings.warehouse?.surchargeRate ?? 0.03) * 100),
             paymentDueDays: String(settings.warehouse?.paymentDueDays ?? 25),
             dailyInterestRate: String((settings.warehouse?.dailyInterestRate ?? 0.00025) * 100),

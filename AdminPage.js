@@ -151,7 +151,7 @@ const AdminPage = ({ onClose }) => {
                         <div>
                             <SectionTitle title="창고료 & 가산세 기본값" />
                             <InputRow label="창고료 단가" value={localSettings.warehouse?.ratePerCBMPerDay ?? 1200} onChange={v => handleNumberChange('warehouse', 'ratePerCBMPerDay', v)} unit="원/CBM/일" />
-                            <InputRow label="무료보관일수" value={localSettings.warehouse?.freeDays ?? 14} onChange={v => handleNumberChange('warehouse', 'freeDays', v)} unit="일" />
+                            <InputRow label="무료보관일수" value={localSettings.warehouse?.freeDays ?? 7} onChange={v => handleNumberChange('warehouse', 'freeDays', v)} unit="일" />
                             <InputRow label="가산세율 (0.03 = 3%)" value={localSettings.warehouse?.surchargeRate ?? 0.03} onChange={v => handleNumberChange('warehouse', 'surchargeRate', v)} unit="" />
                             <InputRow label="납부마감기한 (입항일+N)" value={localSettings.warehouse?.paymentDueDays ?? 25} onChange={v => handleNumberChange('warehouse', 'paymentDueDays', v)} unit="일" />
                             <InputRow label="일 지연이자율 (0.00025 = 0.025%)" value={localSettings.warehouse?.dailyInterestRate ?? 0.00025} onChange={v => handleNumberChange('warehouse', 'dailyInterestRate', v)} unit="" />

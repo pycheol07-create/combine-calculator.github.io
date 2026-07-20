@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS = {
     },
     warehouse: {
         ratePerCBMPerDay: 1200,      // 창고료 단가 (원/CBM/일)
-        freeDays: 14,                // 무료보관일수 (일)
+        freeDays: 7,                 // 무료보관일수 (일)
         surchargeRate: 0.03,         // 통관비 납부지연 기본가산세율 (3%)
         paymentDueDays: 25,          // 납부마감기한 (신고일 + N일)
         dailyInterestRate: 0.00025,  // 일 이자율 (0.025%)
