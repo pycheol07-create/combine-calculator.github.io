@@ -151,7 +151,7 @@ const AdminPage = ({ onClose }) => {
                                         {sheetSyncStatus === 'loading' && '동기화 중...'}
                                         {sheetSyncStatus === 'success' && `동기화 성공 (${sheetSyncedAt ? sheetSyncedAt.toLocaleTimeString('ko-KR') : ''}) — M1/O1/P1 값 반영됨`}
                                         {sheetSyncStatus === 'error' && (
-                                            <span className="text-red-600">동기화 실패: {sheetSyncError} — 시트가 공개(링크가 있는 모든 사용자)인지 확인하세요</span>
+                                            <span className="text-red-600">동기화 실패: {sheetSyncError} — 시트가 웹에 게시(파일→공유→웹에 게시, CSV)되어 있는지 확인하세요</span>
                                         )}
                                         {sheetSyncStatus === 'idle' && '앱 로드 시 자동 fetch됩니다'}
                                     </div>

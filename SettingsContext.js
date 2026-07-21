@@ -3,17 +3,13 @@
 
 const SettingsContext = React.createContext();
 
-// 시트 fetch 설정: P1=상품단가, O1=박스당수량, M1=박스당무게
-const CUSTOMS_SHEET = {
-    id: '1vaQUA4P7fyof4Y3OHynnOMAaRNpMrKyepgXjOZcYNbQ',
-    gid: '319984063',
-    range: 'M1:P1',
-};
+// 게시된 시트 CSV URL (파일→공유→웹에 게시). 시트 자체는 비공개로 유지되고 이 URL로만 노출됨
+// 전체 시트 CSV 첫 행에서 M/O/P 컬럼(0-index 12/14/15) = 박스당무게/박스당수량/상품단가
+const CUSTOMS_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQGznMa6vr4OagMM6Be-bqGIfRS4my0PLltJVNZUjLXR03DxYyGDkjeETNJ6c1t2twiEwvcFTcO8SA9/pub?gid=319984063&single=true&output=csv';
 
-// gviz CSV 응답을 파싱해 M1/O1/P1 값 추출 (M1=weight, O1=qtyPerBox, P1=unitPrice)
-const parseSheetCsv = (csv) => {
+// CSV 첫 행을 파싱해 셀 배열 반환 (따옴표 및 콤마 처리)
+const parseFirstRow = (csv) => {
     const line = (csv || '').split('\n')[0] || '';
-    // CSV 셀 분리 (따옴표 및 콤마 처리)
     const cells = [];
     let cur = '', inQuote = false;
     for (let i = 0; i < line.length; i++) {
@@ -28,23 +24,27 @@ const parseSheetCsv = (csv) => {
         }
     }
     cells.push(cur);
-    // M=0, N=1, O=2, P=3
-    const stripNum = (s) => parseFloat(String(s).replace(/[^0-9.\-]/g, ''));
-    return {
-        defaultWeightPerBox: stripNum(cells[0]),
-        defaultQuantityPerBox: stripNum(cells[2]),
-        defaultUnitPrice: stripNum(cells[3]),
-    };
+    return cells;
 };
 
+// "$ 6.43", "26kg", " ₩ 1,234 " 등에서 숫자만 추출
+const parseNum = (s) => parseFloat(String(s ?? '').replace(/[^0-9.\-]/g, ''));
+
 const fetchCustomsDefaultsFromSheet = async () => {
-    const url = `https://docs.google.com/spreadsheets/d/${CUSTOMS_SHEET.id}/gviz/tq?tqx=out:csv&gid=${CUSTOMS_SHEET.gid}&range=${CUSTOMS_SHEET.range}`;
+    // cache-buster로 브라우저·중간 캐시 회피
+    const url = `${CUSTOMS_SHEET_CSV_URL}&_ts=${Date.now()}`;
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
-    const values = parseSheetCsv(text);
+    const cells = parseFirstRow(text);
+    // A=0, B=1, ..., M=12, N=13, O=14, P=15
+    const values = {
+        defaultWeightPerBox: parseNum(cells[12]),
+        defaultQuantityPerBox: parseNum(cells[14]),
+        defaultUnitPrice: parseNum(cells[15]),
+    };
     if ([values.defaultWeightPerBox, values.defaultQuantityPerBox, values.defaultUnitPrice].some(v => !Number.isFinite(v))) {
-        throw new Error('Invalid values from sheet');
+        throw new Error('시트에서 유효한 숫자를 얻지 못했습니다 (M1/O1/P1 확인 필요)');
     }
     return values;
 };
