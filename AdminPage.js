@@ -1,9 +1,17 @@
 // [수정됨] 'LCL 최소 CBM' 설정 추가
 const AdminPage = ({ onClose }) => {
-    const { settings, updateSettings, resetSettings } = React.useContext(SettingsContext);
-    
+    const { settings, updateSettings, resetSettings, sheetSyncStatus, sheetSyncError, sheetSyncedAt, syncFromSheet } = React.useContext(SettingsContext);
+
     const [localSettings, setLocalSettings] = React.useState(settings);
     const [activeTab, setActiveTab] = React.useState('common');
+
+    // 시트 동기화로 settings.customs가 갱신되면 localSettings에도 반영
+    React.useEffect(() => {
+        setLocalSettings(prev => ({
+            ...prev,
+            customs: { ...prev.customs, ...settings.customs },
+        }));
+    }, [settings.customs.defaultUnitPrice, settings.customs.defaultQuantityPerBox, settings.customs.defaultWeightPerBox]);
 
     const handleNumberChange = (category, key, value) => {
         setLocalSettings(prev => ({
@@ -135,9 +143,31 @@ const AdminPage = ({ onClose }) => {
                     {activeTab === 'customs' && (
                         <div>
                             <SectionTitle title="통관비 계산기 기본값" />
-                            <InputRow label="상품 단가 (기본)" value={localSettings.customs.defaultUnitPrice} onChange={v => handleNumberChange('customs', 'defaultUnitPrice', v)} unit="USD/개" />
-                            <InputRow label="박스당 수량 (기본)" value={localSettings.customs.defaultQuantityPerBox} onChange={v => handleNumberChange('customs', 'defaultQuantityPerBox', v)} unit="개/박스" />
-                            <InputRow label="박스당 무게 (기본)" value={localSettings.customs.defaultWeightPerBox} onChange={v => handleNumberChange('customs', 'defaultWeightPerBox', v)} unit="kg/박스" />
+
+                            <div className="mb-4 p-3 rounded-lg border flex items-center justify-between gap-3 text-sm bg-slate-50 border-slate-200">
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-gray-800">📊 구글 스프레드시트 자동 동기화</div>
+                                    <div className="text-xs text-gray-500 mt-0.5">
+                                        {sheetSyncStatus === 'loading' && '동기화 중...'}
+                                        {sheetSyncStatus === 'success' && `동기화 성공 (${sheetSyncedAt ? sheetSyncedAt.toLocaleTimeString('ko-KR') : ''}) — M1/O1/P1 값 반영됨`}
+                                        {sheetSyncStatus === 'error' && (
+                                            <span className="text-red-600">동기화 실패: {sheetSyncError} — 시트가 공개(링크가 있는 모든 사용자)인지 확인하세요</span>
+                                        )}
+                                        {sheetSyncStatus === 'idle' && '앱 로드 시 자동 fetch됩니다'}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={syncFromSheet}
+                                    disabled={sheetSyncStatus === 'loading'}
+                                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                >
+                                    {sheetSyncStatus === 'loading' ? '동기화 중' : '시트에서 새로고침'}
+                                </button>
+                            </div>
+
+                            <InputRow label="상품 단가 (P1)" value={localSettings.customs.defaultUnitPrice} onChange={v => handleNumberChange('customs', 'defaultUnitPrice', v)} unit="USD/개" />
+                            <InputRow label="박스당 수량 (O1)" value={localSettings.customs.defaultQuantityPerBox} onChange={v => handleNumberChange('customs', 'defaultQuantityPerBox', v)} unit="개/박스" />
+                            <InputRow label="박스당 무게 (M1)" value={localSettings.customs.defaultWeightPerBox} onChange={v => handleNumberChange('customs', 'defaultWeightPerBox', v)} unit="kg/박스" />
 
                             <SectionTitle title="통관비 계산기 옵션" />
                             <ArrayEditor title="관세율 옵션" data={localSettings.customs.tariffRates} category="customs" arrayKey="tariffRates" template={{label: '새 옵션', value: 0}} />
