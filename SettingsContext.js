@@ -3,9 +3,9 @@
 
 const SettingsContext = React.createContext();
 
-// 게시된 시트 CSV URL (파일→공유→웹에 게시). 시트 자체는 비공개로 유지되고 이 URL로만 노출됨
-// 전체 시트 CSV 첫 행에서 M/O/P 컬럼(0-index 12/14/15) = 박스당무게/박스당수량/상품단가
-const CUSTOMS_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQGznMa6vr4OagMM6Be-bqGIfRS4my0PLltJVNZUjLXR03DxYyGDkjeETNJ6c1t2twiEwvcFTcO8SA9/pub?gid=319984063&single=true&output=csv';
+// 게시된 시트 CSV URL (파일→공유→웹에 게시). 원본 시트가 아닌 세 값만 미러링한 공개용 참조 시트를 게시하여 민감 데이터 노출을 방지.
+// CSV 첫 행에서 M/O/P 컬럼(0-index 12/14/15) = 박스당무게/박스당수량/상품단가
+const CUSTOMS_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQGznMa6vr4OagMM6Be-bqGIfRS4my0PLltJVNZUjLXR03DxYyGDkjeETNJ6c1t2twiEwvcFTcO8SA9/pub?gid=1675654509&single=true&output=csv';
 
 // CSV 첫 행을 파싱해 셀 배열 반환 (따옴표 및 콤마 처리)
 const parseFirstRow = (csv) => {
