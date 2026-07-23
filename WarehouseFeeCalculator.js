@@ -15,6 +15,8 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
     const today = toDateStr(new Date());
 
     const [calculationMode, setCalculationMode] = React.useState('quantity'); // 'quantity' | 'amount'
+    const [useManualBoxCbm, setUseManualBoxCbm] = React.useState(false);
+    const [manualValues, setManualValues] = React.useState({ boxes: '', cbm: '' });
 
     const [formData, setFormData] = React.useState(() => ({
         // 상품수량 / 상품금액(USD) & 관세율 (통관비 자동 산출용)
@@ -115,9 +117,17 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
         const customsRate = parseFloat(exchangeRates?.customs) || 1350;
 
         // --- 자동 산출: 박스수, CBM, 통관비 ---
-        const totalBoxes = quantity > 0 ? Math.ceil(quantity / quantityPerBox) : 0;
-        const totalWeight = totalBoxes * weightPerBox;
-        const cbm = totalWeight / cbmWeightDivisor;
+        const autoTotalBoxes = quantity > 0 ? Math.ceil(quantity / quantityPerBox) : 0;
+        const autoCbm = (autoTotalBoxes * weightPerBox) / cbmWeightDivisor;
+
+        // 수동 오버라이드 (실제값 입력 모드)
+        const manualBoxesNum = parseFloat(manualValues.boxes);
+        const manualCbmNum = parseFloat(manualValues.cbm);
+        const totalBoxes = useManualBoxCbm && Number.isFinite(manualBoxesNum) && manualBoxesNum > 0
+            ? manualBoxesNum : autoTotalBoxes;
+        const cbm = useManualBoxCbm && Number.isFinite(manualCbmNum) && manualCbmNum > 0
+            ? manualCbmNum : autoCbm;
+
         const chargeableCbm = Math.max(cbm, minCbm);
         const oceanFreightKRW = chargeableCbm * oceanFreightPerCbm;
 
@@ -152,12 +162,13 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
         const grandTotal = warehouseFeeTotal + surchargeTotal;
 
         return {
-            derivedQuantity: quantity, totalBoxes, cbm, tariff, vat, customsFee,
+            derivedQuantity: quantity, totalBoxes, cbm, autoTotalBoxes, autoCbm,
+            tariff, vat, customsFee,
             totalStayDays, storageDays, warehouseFeeTotal, freeUntil,
             paymentDueDate, delayDays, surchargeAmount, lateInterest, surchargeTotal,
             grandTotal,
         };
-    }, [formData, calculationMode, settings, exchangeRates]);
+    }, [formData, calculationMode, useManualBoxCbm, manualValues, settings, exchangeRates]);
 
     const formatKRW = (v) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(v || 0);
     const formatDays = (v) => `${new Intl.NumberFormat('ko-KR').format(v || 0)} 일`;
@@ -247,6 +258,35 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                     <div className="p-3 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-800">
                         ※ 상품 단가·박스당 수량·박스당 무게·해운비·관세청 고시환율은 설정관리 및 통관비 계산기 값을 자동 사용합니다.
                     </div>
+
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <label className="flex items-center justify-between cursor-pointer">
+                            <span className="text-sm font-bold text-gray-800">박스수량 & CBM 수동입력</span>
+                            <span className="relative inline-flex items-center">
+                                <input type="checkbox" checked={useManualBoxCbm} onChange={(e) => {
+                                    const on = e.target.checked;
+                                    setUseManualBoxCbm(on);
+                                    if (on) {
+                                        // 켤 때 현재 자동 산출값으로 초기 세팅
+                                        setManualValues({
+                                            boxes: String(results.autoTotalBoxes || ''),
+                                            cbm: String((results.autoCbm ?? 0).toFixed(3)),
+                                        });
+                                    }
+                                }} className="sr-only peer" />
+                                <span className="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:bg-emerald-500 transition-colors"></span>
+                                <span className="absolute left-0.5 top-0.5 h-5 w-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5"></span>
+                            </span>
+                        </label>
+                        <p className="mt-1 text-xs text-slate-500">패킹리스트 등 실제값이 확인되면 켜서 직접 입력하세요.</p>
+
+                        {useManualBoxCbm && (
+                            <div className="mt-4 space-y-4">
+                                <InputControl label="실제 박스수량" name="manualBoxes" value={manualValues.boxes} onChange={(e) => setManualValues(v => ({ ...v, boxes: e.target.value }))} unit="박스" icon={<CalcIcon />} onKeyDown={handleKeyDown} placeholder={`자동 산출: ${results.autoTotalBoxes}`} />
+                                <InputControl label="실제 CBM" name="manualCbm" value={manualValues.cbm} onChange={(e) => setManualValues(v => ({ ...v, cbm: e.target.value }))} unit="㎥" icon={<CalcIcon />} onKeyDown={handleKeyDown} placeholder={`자동 산출: ${(results.autoCbm ?? 0).toFixed(3)}`} />
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <h2 className="text-2xl font-bold text-gray-800 mb-6 mt-10 border-b border-slate-200 pb-4">보세창고료 입력</h2>
@@ -271,13 +311,26 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
 
                 <div className="mt-6 space-y-3">
                     <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200">
-                        <h3 className="font-bold text-blue-900 mb-2">자동 산출값</h3>
+                        <h3 className="font-bold text-blue-900 mb-2">
+                            자동 산출값
+                            {useManualBoxCbm && <span className="ml-2 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">박스/CBM 수동 적용중</span>}
+                        </h3>
                         <div className="divide-y divide-blue-100">
                             {calculationMode === 'amount' && (
                                 <ResultRow label="상품수량 (금액÷단가)" value={formatQty(results.derivedQuantity)} isSub />
                             )}
-                            <ResultRow label="박스 수량" value={formatBoxes(results.totalBoxes)} isSub />
-                            <ResultRow label="CBM" value={formatCBM(results.cbm)} isSub />
+                            <ResultRow
+                                label="박스 수량"
+                                value={useManualBoxCbm
+                                    ? <span><span className="text-slate-400 line-through mr-2 text-xs">{formatBoxes(results.autoTotalBoxes)}</span>{formatBoxes(results.totalBoxes)}</span>
+                                    : formatBoxes(results.totalBoxes)}
+                                isSub />
+                            <ResultRow
+                                label="CBM"
+                                value={useManualBoxCbm
+                                    ? <span><span className="text-slate-400 line-through mr-2 text-xs">{formatCBM(results.autoCbm)}</span>{formatCBM(results.cbm)}</span>
+                                    : formatCBM(results.cbm)}
+                                isSub />
                             <ResultRow label={`관세 (${formData.tariffRate}%)`} value={formatKRW(results.tariff)} isSub />
                             <ResultRow label="부가세 (10%)" value={formatKRW(results.vat)} isSub />
                             <ResultRow label="통관비 (관세+부가세)" value={formatKRW(results.customsFee)} />
